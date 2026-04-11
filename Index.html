@@ -707,7 +707,10 @@ function renderDetail(id){
   <div class="sico" style="background:${C[idx%C.length]};width:50px;height:50px;min-width:50px;font-size:15px">${abbr(h.n)}</div>
   <div style="min-width:0;flex:1;overflow:hidden">
     <div style="font-size:17px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.n}</div>
-    <div style="font-size:12px;color:#888;margin-top:2px">${h.sym||toSym(h.n)} · ${acl}</div>
+    <div style="font-size:12px;color:#888;margin-top:2px">${h.sym||toSym(h.n)}</div>
+    <div style="display:flex;gap:5px;margin-top:6px">
+      ${['normal','isa','irp'].map(k=>`<button onclick="changeAcct(${id},'${k}')" style="flex:1;padding:5px 4px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid ${(h.acct||'normal')===k?ACCT_C[k]:'#e0e0e0'};background:${(h.acct||'normal')===k?ACCT_C[k]:'#fff'};color:${(h.acct||'normal')===k?'#fff':'#888'}">${k==='normal'?'일반계좌':k.toUpperCase()}</button>`).join('')}
+    </div>
     ${h.buyDate?`<div style="font-size:12px;color:#aaa">최초 매수 ${h.buyDate}</div>`:''}
   </div>
 </div>
@@ -804,6 +807,10 @@ function migratePurchases(h){
   if(h.purchases&&h.purchases.length)return h;
   const purchases=[{pid:h.id,date:h.buyDate||'',qty:h.qty,avg:h.avgCost,acct:h.acct||'normal'}];
   return{...h,purchases};
+}
+function changeAcct(id,acct){
+  D.h=D.h.map(h=>h.id===id?{...h,acct,purchases:(h.purchases||[]).map(p=>({...p,acct}))}:h);
+  saveD();renderDetail(id);render();
 }
 function delH(id){
   const h=D.h.find(x=>x.id===id);
@@ -909,7 +916,15 @@ ${taxList.length?`
     </div>
   </div>
   ${taxList.map(h=>stockRow(h,false)).join('')}
-</div>`:''}
+</div>`:`
+<!-- 절세계좌 없을 때 안내 -->
+<div class="ccard" style="border:1.5px dashed #d1fae5">
+  <div style="text-align:center;padding:8px 0;color:#888;font-size:13px">
+    <span style="font-size:20px;display:block;margin-bottom:6px">🏦</span>
+    ISA/IRP 종목이 없습니다<br>
+    <span style="font-size:12px;color:#aaa">종목 상세 → 계좌 유형을 ISA/IRP로 변경해보세요</span>
+  </div>
+</div>`}
 
 <!-- 월별 달력 -->
 <div class="ccard">
