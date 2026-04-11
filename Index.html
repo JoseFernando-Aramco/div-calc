@@ -271,6 +271,20 @@ const DB=[
   {n:'KODEX 고배당',s:'279540.KS',dy:4.5,df:'분기배당',isDv:true},
   {n:'KODEX 국고채3년',s:'114820.KS',dy:2.5,df:'분기배당',isDv:true},
   {n:'KODEX 단기채권PLUS',s:'214980.KS',dy:3.0,df:'월배당',isDv:true},
+  {n:'KODEX 미국배당커버드콜액티브',s:'441640.KS',dy:9.5,df:'월배당',isDv:true},
+  {n:'KODEX 미국배당다우존스',s:'458760.KS',dy:3.5,df:'월배당',isDv:true},
+  {n:'KODEX 미국AI전력핵심인프라',s:'475080.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 미국AI반도체핵심장비',s:'476550.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 코스피고배당',s:'099140.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'KODEX MSCI코리아',s:'156080.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'KODEX 삼성그룹',s:'102780.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'KODEX 현대차그룹',s:'108450.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'KODEX 미국달러선물',s:'138230.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 골드선물',s:'132030.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX WTI원유선물',s:'261220.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX TDF2050액티브',s:'394280.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'KODEX 200미국채혼합',s:'284430.KS',dy:2.0,df:'분기배당',isDv:true},
+  {n:'KODEX 혁신기술테마액티브',s:'352560.KS',dy:0,df:'없음',isDv:false},
   /* ─ TIGER ─ */
   {n:'TIGER 200',s:'102110.KS',dy:1.5,df:'분기배당',isDv:true},
   {n:'TIGER 미국S&P500',s:'360750.KS',dy:1.2,df:'분기배당',isDv:true},
@@ -756,18 +770,30 @@ function delH(id){
 /* ── 추가 ── */
 function doSrch(q){
   const dd=document.getElementById('srchDD');
-  if(!q.trim()){dd.className='srch-dd';return;}
-  const ql=q.toLowerCase();
-  const m=DB.filter(x=>x.n.toLowerCase().includes(ql)||x.s.toLowerCase().includes(ql)).slice(0,12);
-  if(!m.length){dd.className='srch-dd';return;}
+  if(!q.trim()){dd.className='srch-dd';dd.innerHTML='';return;}
+  const ql=q.toLowerCase().replace(/\s+/g,'');
+  const m=DB.filter(x=>{
+    const nl=x.n.toLowerCase().replace(/\s+/g,'');
+    return nl.includes(ql)||x.s.toLowerCase().includes(ql);
+  }).slice(0,20);
+  if(!m.length){dd.className='srch-dd';dd.innerHTML='';return;}
   dd.innerHTML=m.map(x=>`<div class="ddi" onclick="pickSrch('${x.n.replace(/'/g,"\\'")}','${x.s}',${x.dy},'${x.df}')"><div class="din">${x.n}</div><div class="dis">${x.s} · ${x.isDv?`배당 ${x.dy}% · ${x.df}`:'배당없음'}</div></div>`).join('');
   dd.className='srch-dd show';
 }
 function pickSrch(n,s,dy,df){
-  document.getElementById('aName').value=n;
+  const inp=document.getElementById('aName');
+  inp.value=n;
+  inp.oninput=null; /* 임시로 검색 비활성화 */
   document.getElementById('aDy').value=dy||'';
   document.getElementById('aDf').value=df||'없음';
-  document.getElementById('srchDD').className='srch-dd';
+  const dd=document.getElementById('srchDD');
+  dd.className='srch-dd';
+  dd.innerHTML='';
+  /* 평단가 필드로 포커스 이동 */
+  setTimeout(()=>{
+    document.getElementById('aAvg').focus();
+    inp.oninput=e=>doSrch(e.target.value); /* 다시 활성화 */
+  },50);
 }
 document.addEventListener('click',e=>{if(!e.target.closest('.srch-wrap'))document.getElementById('srchDD').className='srch-dd';});
 function openAdd(){document.getElementById('addOv').classList.add('show');}
