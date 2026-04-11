@@ -823,17 +823,17 @@ function renderSim(){
   const H=D.h;
   const sc=document.getElementById('sim-cont');
 
-  /* dy>0인 종목만 - 배당 내역 조회 후 자동 계산된 것 포함 */
-  const dvAll=H.filter(h=>h.dy>0);
+  /* 배당 있는 종목 + ISA/IRP 계좌 종목 모두 포함 */
+  const dvAll=H.filter(h=>h.dy>0||(h.acct==='isa'||h.acct==='irp'));
 
-  if(!dvAll.length){
+  if(!normList.length&&!taxList.length){
     sc.innerHTML='<div class="empty"><div style="font-size:36px;margin-bottom:10px">🪙</div><div>배당주를 추가하면 시뮬레이션이 표시됩니다</div></div>';
     return;
   }
 
   /* 계좌별 분리 */
-  const normList=dvAll.filter(h=>!h.acct||h.acct==='normal');
-  const taxList=dvAll.filter(h=>h.acct==='isa'||h.acct==='irp');
+  const normList=H.filter(h=>h.dy>0&&(!h.acct||h.acct==='normal'));
+  const taxList=H.filter(h=>h.acct==='isa'||h.acct==='irp');
 
   function stockMon(h){
     const val=(h.cur||h.avg)*h.qty;
@@ -851,7 +851,8 @@ function renderSim(){
   const taxMonTotal=taxList.reduce((s,h)=>s+stockMon(h),0);
   const totalMonAfter=normMonTotal+taxMonTotal;
   const totalAnn=dvAll.reduce((s,h)=>s+stockAnn(h),0);
-  const totalVal=dvAll.reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
+  const allForVal=[...new Set([...normList,...taxList].map(h=>h.id))].map(id=>H.find(h=>h.id===id)).filter(Boolean);
+  const totalVal=allForVal.reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
   const avgY=totalVal>0?totalAnn/totalVal*100:0;
   const ci2=h=>Math.max(0,D.h.findIndex(x=>x.id===h.id));
 
@@ -867,8 +868,8 @@ function renderSim(){
       <div style="font-size:11px;color:#aaa;margin-top:1px">${fN(h.qty)}주 · ${h.df||'배당'} · ${h.dy.toFixed(1)}%</div>
     </div>
     <div style="text-align:right;flex-shrink:0;margin-left:10px">
-      <div style="font-size:14px;font-weight:700;color:#d97706">${fmt(mon)}/월</div>
-      <div style="font-size:11px;color:#aaa">연 ${fmt(ann)}</div>
+      <div style="font-size:14px;font-weight:700;color:${mon>0?'#d97706':'#aaa'}">${mon>0?fmt(mon)+'/월':'배당 조회 중'}</div>
+      <div style="font-size:11px;color:#aaa">${mon>0?'연 '+fmt(ann):h.dy===0?'상세페이지에서 배당 내역 조회 후 반영':''}</div>
     </div>
   </div>
   <div style="background:#f0f0f0;border-radius:4px;height:5px">
@@ -977,11 +978,11 @@ function setFlt(f){FLT=f;[['all','all'],['norm','norm'],['div','div'],['high','h
 function setSort(s){SORT=s;document.getElementById('s-val').className='stab'+(s==='val'?' on':'');document.getElementById('s-pnl').className='stab'+(s==='pnl'?' on':'');renderList();}
 
 /* ════════════ 검색 드롭다운 (이벤트 위임) ════════════ */
-let SRCH=[], _srchTimer=null;
+let SRCH=[], _srchTimer=null, _searchId=0;
 
 function renderDD(results){
   const dd=document.getElementById('srch-dd');
-  if(!results.length){dd.className='srch-dd';dd.innerHTML='';return;}
+  if(!results||!results.length){dd.className='srch-dd';dd.innerHTML='';return;}
   dd.innerHTML=results.map((x,i)=>`<div class="dd-item" data-i="${i}">
     <div class="dd-nm">${x.n}${x.isDv&&x.dy>=3?`<span style="font-size:10px;padding:1px 5px;border-radius:4px;background:${x.dy>=10?'#fff7ed':'#f0fdf4'};color:${x.dy>=10?'#d97706':'#16a34a'};margin-left:4px">${x.dy>=10?'고배당':'배당주'}</span>`:''}</div>
     <div class="dd-sub">${x.s}${x.isDv&&x.dy>0?' · 배당 '+x.dy+'% · '+x.df:x.fromApi?' · 미국주식/ETF':' · 배당없음'}</div>
@@ -1004,27 +1005,46 @@ async function searchFinnhub(q){
 
 function doSearch(q){
   const dd=document.getElementById('srch-dd');
-  if(!q||!q.trim()){dd.className='srch-dd';dd.innerHTML='';SRCH=[];if(_srchTimer)clearTimeout(_srchTimer);return;}
+  if(!q||!q.trim()){closeDD();return;}
+
+  /* 이 검색 요청에 고유 ID 부여 */
+  const myId=++_searchId;
+
   const ql=q.toLowerCase().replace(/\s+/g,'');
-  const local=DB.filter(x=>x.n.toLowerCase().replace(/\s+/g,'').includes(ql)||x.s.toLowerCase().includes(ql)).slice(0,15);
+  const local=DB.filter(x=>
+    x.n.toLowerCase().replace(/\s+/g,'').includes(ql)||
+    x.s.toLowerCase().includes(ql)
+  ).slice(0,15);
+
   SRCH=[...local];
-  if(SRCH.length)renderDD(SRCH);
-  else{dd.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center"><span class="spin-sm"></span> 검색 중...</div>`;dd.className='srch-dd show';}
+  if(SRCH.length) renderDD(SRCH);
+  else{
+    dd.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center"><span class="spin-sm"></span> 검색 중...</div>`;
+    dd.className='srch-dd show';
+  }
+
   if(_srchTimer)clearTimeout(_srchTimer);
   _srchTimer=setTimeout(async()=>{
     const api=await searchFinnhub(q);
+    /* closeDD가 이미 호출됐으면 (searchId가 바뀌었으면) 렌더하지 않음 */
+    if(_searchId!==myId)return;
     const localSyms=new Set(local.map(x=>x.s.toUpperCase()));
     const merged=[...local,...api.filter(x=>!localSyms.has(x.s.toUpperCase()))].slice(0,20);
     SRCH=merged;
-    if(SRCH.length)renderDD(SRCH);
-    else{dd.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center">검색 결과 없음</div>`;dd.className='srch-dd show';}
+    if(SRCH.length) renderDD(SRCH);
+    else{
+      dd.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center">검색 결과 없음</div>`;
+      dd.className='srch-dd show';
+    }
   },400);
 }
+
 function closeDD(){
+  _searchId++; /* 진행 중인 비동기 검색 무효화 */
+  if(_srchTimer){clearTimeout(_srchTimer);_srchTimer=null;}
   const dd=document.getElementById('srch-dd');
   if(dd){dd.className='srch-dd';dd.innerHTML='';}
   SRCH=[];
-  if(_srchTimer){clearTimeout(_srchTimer);_srchTimer=null;}
 }
 /* 드롭다운 초기화 - flag 방식으로 blur/click 타이밍 충돌 방지 */
 let _ddPicking=false;
