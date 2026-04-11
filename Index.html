@@ -272,12 +272,61 @@ async function fetchRate(){
   }catch{}
 }
 async function fhDivs(sym){
-  const to=new Date().toISOString().split('T')[0];
-  const from=new Date(Date.now()-365*24*3600*1000).toISOString().split('T')[0];
-  const r=await fetch(`https://finnhub.io/api/v1/stock/dividend2?symbol=${encodeURIComponent(sym)}&from=${from}&to=${to}&token=${FKEY}`);
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const j=await r.json();
-  return(j||[]).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if(isKR(sym)){
+    /* 한국주식 - Yahoo Finance 배당 데이터 */
+    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=3mo&range=2y&events=div`;
+    for(const mkP of PROXIES){
+      try{
+        const r=await fetch(mkP(url));
+        if(!r.ok)continue;
+        const text=await r.text();
+        const j=JSON.parse(text.startsWith('{"contents"')?JSON.parse(text).contents:text);
+        const divEvents=j?.chart?.result?.[0]?.events?.dividends;
+        if(!divEvents)return [];
+        const cutoff=Date.now()/1000-365*24*3600;
+        return Object.values(divEvents)
+          .filter(d=>d.date>cutoff)
+          .map(d=>({
+            date:new Date(d.date*1000).toISOString().split('T')[0],
+            amount:Math.round(d.amount)
+          }))
+          .sort((a,b)=>b.date.localeCompare(a.date));
+      }catch{}
+    }
+    return [];
+  }else{
+    /* 미국주식 - Finnhub */
+    const to=new Date().toISOString().split('T')[0];
+    const from=new Date(Date.now()-365*24*3600*1000).toISOString().split('T')[0];
+    try{
+      const r=await fetch(`https://finnhub.io/api/v1/stock/dividend2?symbol=${encodeURIComponent(sym)}&from=${from}&to=${to}&token=${FKEY}`);
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const j=await r.json();
+      return(j||[]).map(d=>({date:d.date||d.payDate||'',amount:d.amount||0})).sort((a,b)=>b.date.localeCompare(a.date));
+    }catch{
+      /* 미국주식도 Yahoo Finance 폴백 */
+      const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=3mo&range=2y&events=div`;
+      for(const mkP of PROXIES){
+        try{
+          const r=await fetch(mkP(url));
+          if(!r.ok)continue;
+          const text=await r.text();
+          const j=JSON.parse(text.startsWith('{"contents"')?JSON.parse(text).contents:text);
+          const divEvents=j?.chart?.result?.[0]?.events?.dividends;
+          if(!divEvents)return [];
+          const cutoff=Date.now()/1000-365*24*3600;
+          return Object.values(divEvents)
+            .filter(d=>d.date>cutoff)
+            .map(d=>({
+              date:new Date(d.date*1000).toISOString().split('T')[0],
+              amount:parseFloat(d.amount.toFixed(4))
+            }))
+            .sort((a,b)=>b.date.localeCompare(a.date));
+        }catch{}
+      }
+      return [];
+    }
+  }
 }
 
 async function fetchOne(id){
