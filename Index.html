@@ -159,6 +159,7 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f2f2f7;co
       <span class="hdr-lbl">총 자산</span>
       <div class="hdr-actions">
         <button class="hdr-btn" id="rf-btn" onclick="refreshAll()" title="전체 업데이트">↻</button>
+        <button class="hdr-btn" onclick="openMenu()" title="메뉴">☰</button>
         <button class="hdr-btn" onclick="openAdd()">＋</button>
       </div>
     </div>
@@ -209,6 +210,29 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f2f2f7;co
     <div class="det-title" id="det-ttl"></div>
   </div>
   <div class="det-body" id="det-body"></div>
+</div>
+
+<!-- 메뉴 모달 -->
+<div class="ov" id="ov-menu">
+  <div class="modal" onclick="event.stopPropagation()" style="padding-bottom:32px">
+    <div class="m-ttl">데이터 관리</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onclick="exportData()" style="padding:15px;border-radius:12px;border:1.5px solid #4f46e5;background:#eef2ff;color:#4f46e5;font-size:15px;font-weight:600;cursor:pointer;text-align:left">
+        📤 데이터 내보내기
+        <div style="font-size:12px;color:#888;font-weight:400;margin-top:3px">JSON 파일로 저장 · 백업용</div>
+      </button>
+      <button onclick="document.getElementById('imp-file').click()" style="padding:15px;border-radius:12px;border:1.5px solid #16a34a;background:#f0fdf4;color:#16a34a;font-size:15px;font-weight:600;cursor:pointer;text-align:left">
+        📥 데이터 불러오기
+        <div style="font-size:12px;color:#888;font-weight:400;margin-top:3px">JSON 파일에서 복원 · 기기 이동시</div>
+      </button>
+      <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importData(this)">
+      <div style="background:#fff7ed;border-radius:10px;padding:12px 14px;font-size:12px;color:#92400e;line-height:1.6">
+        💡 캐시 삭제 전에 <b>내보내기</b>로 파일 저장해두세요.<br>
+        다른 기기에서 쓸 때도 파일 전송 후 <b>불러오기</b> 하면 됩니다.
+      </div>
+      <button onclick="closeMenu()" style="padding:13px;border-radius:12px;border:1px solid #e0e0e0;background:#f5f5f5;font-size:14px;cursor:pointer;color:#555;margin-top:4px">닫기</button>
+    </div>
+  </div>
 </div>
 
 <!-- 추가 모달 -->
@@ -864,6 +888,45 @@ async function prefetch(){
       await new Promise(r=>setTimeout(r,500));
     }
   }
+}
+
+/* ── 내보내기 / 불러오기 ── */
+function openMenu(){document.getElementById('ov-menu').classList.add('on');}
+function closeMenu(){document.getElementById('ov-menu').classList.remove('on');}
+document.getElementById('ov-menu').addEventListener('click',e=>{if(e.target===document.getElementById('ov-menu'))closeMenu();});
+
+function exportData(){
+  const data=JSON.stringify(D,null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const date=new Date().toISOString().split('T')[0];
+  a.href=url;
+  a.download=`portfolio_${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  closeMenu();
+}
+
+function importData(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const parsed=JSON.parse(e.target.result);
+      if(!parsed.h||!Array.isArray(parsed.h)){alert('올바른 포트폴리오 파일이 아닙니다.');return;}
+      if(!confirm(`종목 ${parsed.h.length}개 데이터를 불러올까요?
+현재 데이터는 덮어쓰여집니다.`))return;
+      D=parsed;
+      /* DB 종목 dy 리셋 */
+      D.h=D.h.map(h=>{const dbI=DB.find(x=>x.s===h.sym||x.n===h.n);if(dbI&&dbI.dy>0)return{...h,dy:dbI.dy,df:dbI.df};return h;});
+      sv();closeMenu();render();
+      alert(`✅ ${D.h.length}개 종목을 불러왔습니다!`);
+    }catch{alert('파일을 읽을 수 없습니다. JSON 형식을 확인해주세요.');}
+  };
+  reader.readAsText(file);
+  input.value='';
 }
 
 render();
