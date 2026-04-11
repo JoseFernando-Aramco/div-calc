@@ -801,12 +801,13 @@ function initDD(){
 /* ════════════ 모달 ════════════ */
 function setAcct(v){
   CUR_ACCT=v;
-  ['normal','isa','irp'].forEach(k=>{
-    const b=document.getElementById('ab-'+k);
+  [['normal','norm'],['isa','isa'],['irp','irp']].forEach(([k,id])=>{
+    const b=document.getElementById('ab-'+id);
     const on=k===v;
     b.style.background=on?ACCT_C[k]:'#fff';
     b.style.color=on?'#fff':'#888';
     b.style.borderColor=on?ACCT_C[k]:'#e0e0e0';
+    b.style.fontWeight=on?'700':'600';
   });
   const hint=document.getElementById('acct-hint');
   hint.textContent=ACCT_H[v];
