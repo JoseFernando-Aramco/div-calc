@@ -36,6 +36,9 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f2f2f7;co
 .fbtns{margin-left:auto;display:flex;gap:5px}
 .fbtn{font-size:12px;padding:4px 10px;border-radius:12px;border:1px solid #ddd;background:#fff;color:#888;cursor:pointer}
 .fbtn.on{border-color:#4f46e5;color:#4f46e5;font-weight:600}
+#f-high.on{border-color:#d97706;color:#d97706}
+#f-div.on{border-color:#16a34a;color:#16a34a}
+#f-norm.on{border-color:#888;color:#555}
 /* 종목 행 */
 .slist{padding:0 16px}
 .srow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #f5f5f5;cursor:pointer;min-width:0}
@@ -192,8 +195,9 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f2f2f7;co
         <button class="stab" id="s-pnl" onclick="setSort('pnl')">수익순</button>
         <div class="fbtns">
           <div class="fbtn on" id="f-all" onclick="setFlt('all')">전체</div>
+          <div class="fbtn" id="f-norm" onclick="setFlt('norm')">일반주</div>
           <div class="fbtn" id="f-div" onclick="setFlt('div')">배당주</div>
-          <div class="fbtn" id="f-norm" onclick="setFlt('norm')">일반</div>
+          <div class="fbtn" id="f-high" onclick="setFlt('high')">고배당</div>
         </div>
       </div>
       <div class="slist" id="s-list"></div>
@@ -512,7 +516,7 @@ function renderHeader(){
   const tv=H.reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
   const tc=H.reduce((s,h)=>h.avgCost*h.qty+s,0);
   const pnl=tv-tc,pct=tc>0?pnl/tc*100:0;
-  const dv=H.filter(h=>h.isDv&&h.dy>0);
+  const dv=H.filter(h=>h.isDv&&h.dy>=3);
   const md=dv.reduce((s,h)=>{const a=(h.cur||h.avg)*h.qty*h.dy/100;return s+a/dvN(h.df);},0);
   const nv=H.filter(h=>!h.isDv||!h.dy).reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
   const dval=dv.reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
@@ -520,7 +524,10 @@ function renderHeader(){
   const pe=document.getElementById('h-pnl');
   pe.textContent=H.length?`${pnl>=0?'+':''}${fmt(pnl)} (${pct>=0?'+':''}${pct.toFixed(2)}%) 총 수익`:'';
   pe.className='hdr-pnl '+(pnl>=0?'pos':'neg');
-  document.getElementById('h-info').textContent=H.length?`일반 ${fmt(nv)} · 배당주 ${fmt(dval)}`:'';
+  const highV=H.filter(h=>h.dy>=10).reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
+  const midV=H.filter(h=>h.dy>=3&&h.dy<10).reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
+  const normV2=H.filter(h=>h.dy<3).reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
+  document.getElementById('h-info').textContent=H.length?`일반주 ${fmt(normV2)} · 배당주 ${fmt(midV)} · 고배당 ${fmt(highV)}`:'';
   const de=document.getElementById('h-div');
   if(md>0){de.style.display='block';de.textContent=`🪙 월 예상 배당 ${fmt(md)}`;}else de.style.display='none';
   const ub=document.getElementById('upd-bar');
@@ -530,7 +537,7 @@ function renderList(){
   const H=D.h;
   const tv=H.reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
   document.getElementById('s-empty').style.display=H.length?'none':'block';
-  let fil=H.filter(h=>FLT==='all'?true:FLT==='div'?(h.isDv&&h.dy>0):(!h.isDv||!h.dy));
+  let fil=H.filter(h=>FLT==='all'?true:FLT==='high'?(h.dy>=10):FLT==='div'?(h.dy>=3&&h.dy<10):FLT==='norm'?(h.dy<3):true);
   if(SORT==='val')fil=[...fil].sort((a,b)=>(b.cur||b.avg)*b.qty-(a.cur||a.avg)*a.qty);
   else fil=[...fil].sort((a,b)=>((b.cur||b.avg)-b.avgCost)*b.qty-((a.cur||a.avg)-a.avgCost)*a.qty);
   document.getElementById('s-list').innerHTML=fil.map(h=>{
@@ -541,7 +548,7 @@ function renderList(){
     return `<div class="srow" onclick="goDetail(${h.id})">
   <div class="sico" style="background:${C[idx%C.length]}">${abbr(h.n)}</div>
   <div class="snm-wrap">
-    <div class="snm">${h.n}${h.isDv&&h.dy>0?`<span class="sbadge" style="background:${BG[idx%BG.length]};color:${C[idx%C.length]}">${h.df}</span>`:''}</div>
+    <div class="snm">${h.n}${h.dy>=10?`<span class="sbadge" style="background:#fff7ed;color:#d97706">${h.df}</span>`:h.dy>=3?`<span class="sbadge" style="background:#f0fdf4;color:#16a34a">${h.df}</span>`:''}</div>
     <div class="ssub">${fN(h.qty)}주 · ${isLd?'<span class="spin-sm"></span> 조회중':fN(cur)+'원'}${h.err?' · <span style="color:#dc2626">실패</span>':''}</div>
   </div>
   <div class="sright">
@@ -558,7 +565,7 @@ function goDetail(id){
   document.getElementById('main-page').style.display='none';
   document.getElementById('detail-page').style.display='block';
   const h=D.h.find(x=>x.id===id);
-  if(h&&h.isDv&&(!h.divHistory||(!h.divAt||Date.now()-h.divAt>86400000)))fetchDivs(id);
+  if(h&&h.isDv&&h.dy>=3&&(!h.divHistory||(!h.divAt||Date.now()-h.divAt>86400000)))fetchDivs(id);
   renderDetail(id);
 }
 function goBack(){
@@ -604,7 +611,7 @@ function renderDetail(id){
 
   /* 배당 내역 섹션 */
   let divSec='';
-  if(h.isDv){
+  if(h.isDv&&h.dy>=3){
     const isLdDiv=LOADING.has(id);
     if(isLdDiv&&!h.divHistory){
       divSec=`<div class="dcard"><div class="dcard-ttl">직전 12개월 배당</div><div style="text-align:center;padding:16px;color:#aaa"><span class="spin-sm"></span> 조회 중...</div></div>`;
@@ -706,7 +713,7 @@ function renderDetail(id){
   <div class="drow"><span class="dl">평균 매수가</span><span class="dv">${fN(h.avgCost)}원</span></div>
   <div class="drow"><span class="dl">보유 수량</span><span class="dv">${fN(h.qty)}주</span></div>
   <div class="drow"><span class="dl">매수 원금</span><span class="dv">${fmt(h.avgCost*h.qty)}</span></div>
-  ${h.isDv&&h.dy>0?`
+  ${h.isDv&&h.dy>=3?`
   <div class="drow"><span class="dl">연 배당수익률 <span style="font-size:10px;color:#aaa">${h.divHistory?.length?'(12개월 실적)':'(추정)'}</span></span><span class="dv" style="color:#d97706">${h.dy.toFixed(2)}% · ${h.df}</span></div>
   <div class="drow"><span class="dl">세전 월 예상배당</span><span class="dv" style="color:#d97706">${fmt(ann/12)}</span></div>
   <div class="drow"><span class="dl">세후 월 예상배당</span><span class="dv" style="color:#16a34a">${(h.acct||'normal')==='normal'?fmt(ann/12*0.846):fmt(ann/12)+' (절세)'}</span></div>
@@ -802,7 +809,7 @@ function delH(id){
 /* ════════════ 시뮬 ════════════ */
 function renderSim(){
   const H=D.h, tv=H.reduce((s,h)=>(h.cur||h.avg)*h.qty+s,0);
-  const dv=H.filter(h=>h.isDv&&h.dy>0);
+  const dv=H.filter(h=>h.isDv&&h.dy>=3);
   const sc=document.getElementById('sim-cont');
   if(!dv.length){sc.innerHTML='<div class="empty"><div style="font-size:36px;margin-bottom:10px">🪙</div><div>배당주를 추가하면 시뮬레이션이 표시됩니다</div></div>';return;}
 
@@ -992,7 +999,7 @@ function goTab(t){
   if(t==='sim')renderSim();
   else if(t==='chart')renderPie();
 }
-function setFlt(f){FLT=f;[['all','all'],['div','div'],['norm','norm']].forEach(([id,k])=>document.getElementById('f-'+id).className='fbtn'+(f===k?' on':''));renderList();}
+function setFlt(f){FLT=f;[['all','all'],['norm','norm'],['div','div'],['high','high']].forEach(([id,k])=>document.getElementById('f-'+id).className='fbtn'+(f===k?' on':''));renderList();}
 function setSort(s){SORT=s;document.getElementById('s-val').className='stab'+(s==='val'?' on':'');document.getElementById('s-pnl').className='stab'+(s==='pnl'?' on':'');renderList();}
 
 /* ════════════ 검색 드롭다운 (이벤트 위임) ════════════ */
