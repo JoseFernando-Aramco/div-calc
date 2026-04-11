@@ -788,31 +788,86 @@ function setSort(s){SORT=s;document.getElementById('s-v').className='stab'+(s===
 
 /* ── 검색 드롭다운 ── */
 let SRCH=[],_sid=0,_stimer=null;
-function renderDD(r){const dd=document.getElementById('srch-dd');if(!r||!r.length){dd.className='srch-dd';dd.innerHTML='';return;}dd.innerHTML=r.map((x,i)=>`<div class="dd-item" data-i="${i}"><div class="dd-nm">${x.n}${x.dy>=10?`<span class="bdg" style="background:#fff7ed;color:#d97706">고배당</span>`:x.dy>=4?`<span class="bdg" style="background:#f0fdf4;color:#16a34a">배당주</span>`:''}</div><div class="dd-sub">${x.s}${x.dy>0?' · 배당 '+x.dy+'% · '+x.df:x.api?' · 미국주식/ETF':' · 배당없음'}</div></div>`).join('');dd.className='srch-dd on';}
-async function fhSearch(q){try{const r=await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${FK}`);if(!r.ok)return[];const j=await r.json();return(j.result||[]).filter(x=>['ETP','Common Stock','ETF'].includes(x.type)&&!x.symbol.includes('.')).slice(0,10).map(x=>({n:x.description||x.displaySymbol,s:x.symbol,dy:0,df:'없음',api:true}));}catch{return[];}}
+
+function renderDD(r){
+  const dd=document.getElementById('srch-dd');
+  if(!r||!r.length){dd.className='srch-dd';dd.innerHTML='';return;}
+  dd.innerHTML=r.map((x,i)=>`<div class="dd-item" data-i="${i}">
+    <div class="dd-nm">${x.n}${x.dy>=10?'<span class="bdg" style="background:#fff7ed;color:#d97706">고배당</span>':x.dy>=4?'<span class="bdg" style="background:#f0fdf4;color:#16a34a">배당주</span>':''}
+    <span style="font-size:10px;color:#ccc;margin-left:4px">${x.s}</span></div>
+    <div class="dd-sub">${x.kr?'🇰🇷 국내':x.api?'🇺🇸 미국':'📋 DB'} · ${x.dy>0?'배당 '+x.dy+'% · '+x.df:'배당없음'}</div>
+  </div>`).join('');
+  dd.className='srch-dd on';
+}
+
+async function naverSearch(q){
+  try{
+    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)+'&q_enc=UTF-8&st=111&sug=1&u1=1&u2=1&u3=1&u4=1&u5=1&r_format=json&limit=15';
+    const txt=await tout(Promise.any(PX.map(px=>fetch(px(url)).then(r=>{if(!r.ok)throw 0;return r.text()}))),5000);
+    const s=txt.includes('"contents"')?JSON.parse(txt).contents:txt;
+    const j=JSON.parse(s);
+    const items=(j&&j.items&&j.items[0])||[];
+    return items.slice(0,12).map(function(it){
+      const code=it[0],name=it[1];
+      return{n:name,s:code+'.KS',dy:0,df:'없음',kr:true};
+    });
+  }catch(e){return[];}
+}
+
+async function fhSearch(q){
+  try{
+    const r=await fetch('https://finnhub.io/api/v1/search?q='+encodeURIComponent(q)+'&token='+FK);
+    if(!r.ok)return[];
+    const j=await r.json();
+    return(j.result||[]).filter(function(x){return['ETP','Common Stock','ETF'].includes(x.type)&&!x.symbol.includes('.');}).slice(0,8).map(function(x){return{n:x.description||x.displaySymbol,s:x.symbol,dy:0,df:'없음',api:true};});
+  }catch(e){return[];}
+}
+
+function isKR(q){return /[\uAC00-\uD7A3]/.test(q)||/^\d{6}$/.test(q.trim());}
+
 function doSearch(q){
   const dd=document.getElementById('srch-dd');
   if(!q||!q.trim()){closeDD();return;}
   const myId=++_sid;
   const ql=q.toLowerCase().replace(/\s+/g,'');
-  const local=DB.filter(x=>x.n.toLowerCase().replace(/\s+/g,'').includes(ql)||x.s.toLowerCase().includes(ql)).slice(0,15);
-  SRCH=[...local];
+  const local=DB.filter(function(x){return x.n.toLowerCase().replace(/\s+/g,'').includes(ql)||x.s.toLowerCase().includes(ql);}).slice(0,10);
+  SRCH=local.slice();
   if(SRCH.length)renderDD(SRCH);
-  else{dd.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center"><span class="spin-sm"></span> 검색 중...</div>`;dd.className='srch-dd on';}
+  else{dd.innerHTML='<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center"><span class="spin-sm"></span> 검색 중...</div>';dd.className='srch-dd on';}
   if(_stimer)clearTimeout(_stimer);
-  _stimer=setTimeout(async()=>{
-    const api=await fhSearch(q);
+  _stimer=setTimeout(async function(){
+    const useKR=isKR(q)||q.length<=6;
+    const useUS=!isKR(q);
+    const [krRes,usRes]=await Promise.all([
+      useKR?naverSearch(q):Promise.resolve([]),
+      useUS?fhSearch(q):Promise.resolve([]),
+    ]);
     if(_sid!==myId)return;
-    const ls=new Set(local.map(x=>x.s.toUpperCase()));
-    const merged=[...local,...api.filter(x=>!ls.has(x.s.toUpperCase()))].slice(0,20);
+    const localSyms=new Set(local.map(function(x){return x.s.toUpperCase();}));
+    const krMerged=krRes.map(function(x){const dbI=DB.find(function(d){return d.s===x.s||d.n===x.n;});return dbI?Object.assign({},dbI,{kr:true}):x;}).filter(function(x){return!localSyms.has(x.s.toUpperCase());});
+    const krSyms=new Set(krMerged.map(function(x){return x.s.toUpperCase();}));
+    const usMerged=usRes.filter(function(x){return!localSyms.has(x.s.toUpperCase())&&!krSyms.has(x.s.toUpperCase());});
+    const merged=local.concat(krMerged).concat(usMerged).slice(0,25);
     SRCH=merged;
     if(SRCH.length)renderDD(SRCH);
-    else{dd.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center">검색 결과 없음</div>`;dd.className='srch-dd on';}
+    else{dd.innerHTML='<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center">검색 결과 없음</div>';dd.className='srch-dd on';}
   },400);
 }
-function closeDD(){_sid++;if(_stimer){clearTimeout(_stimer);_stimer=null;}const dd=document.getElementById('srch-dd');if(dd){dd.className='srch-dd';dd.innerHTML='';}SRCH=[];}
-function pickDD(x){document.getElementById('srch-inp').value=x.api?x.s:x.n;closeDD();setTimeout(()=>document.getElementById('f-avg')?.focus(),30);}
 
+function closeDD(){
+  _sid++;
+  if(_stimer){clearTimeout(_stimer);_stimer=null;}
+  const dd=document.getElementById('srch-dd');
+  if(dd){dd.className='srch-dd';dd.innerHTML='';}
+  SRCH=[];
+}
+
+function pickDD(x){
+  const inp=document.getElementById('srch-inp');
+  inp.value=x.kr?x.n:(x.api?x.s:x.n);
+  closeDD();
+  setTimeout(function(){const el=document.getElementById('f-avg');if(el)el.focus();},30);
+}
 /* 드롭다운 이벤트 - touchstart + mousedown 둘 다 */
 let _dddown=false;
 function initDD(){
@@ -861,9 +916,13 @@ async function submitAdd(){
   const qty=parseInt(document.getElementById('f-qty').value);
   const dt=document.getElementById('f-date').value;
   if(!nm||!avg||!qty){alert('종목명, 평단가, 수량을 입력해주세요');return;}
-  const dbI=DB.find(x=>x.n===nm||x.s.toUpperCase()===nm.toUpperCase());
-  const sym=dbI?dbI.s:(nm.match(/^[A-Z]{1,6}$/)?nm:toSym(nm));
-  const dy=dbI?dbI.dy:0,df=dbI?dbI.df:'없음';
+  /* DB에서 찾기 (이름 또는 심볼로) */
+  const dbI=DB.find(x=>x.n===nm||x.s.toUpperCase()===nm.toUpperCase()||x.s.replace('.KS','').toUpperCase()===nm.toUpperCase());
+  let sym,dy,df;
+  if(dbI){sym=dbI.s;dy=dbI.dy;df=dbI.df;}
+  else if(nm.match(/^\d{6}$/)){sym=nm+'.KS';dy=0;df='없음';}  /* 종목코드 직접 입력 */
+  else if(nm.match(/^[A-Z]{1,6}$/)){sym=nm;dy=0;df='없음';}    /* 미국 심볼 */
+  else{sym=toSym(nm);dy=0;df='없음';}
   const id=Date.now();
   D.h.push({id,n:nm,sym,avg,avgCost:avg,qty,cur:avg,dy,df,acct:CACCT,buyDate:dt,err:0,purchases:[{pid:id,date:dt,qty,avg,acct:CACCT}]});
   sv();closeAdd();render();
