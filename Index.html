@@ -480,9 +480,14 @@ async function fetchDivs(id){
   LOADING.add(id);render();
   try{
     const rows=await getDivs(h.sym||toSym(h.n));
-    const updated={...D.h.find(x=>x.id===id),divHistory:rows,divAt:Date.now()};
+    const base=D.h.find(x=>x.id===id);
+    const updated={...base,divHistory:rows,divAt:Date.now()};
     const calc=calcDyFromHistory(updated);
-    if(calc){updated.dy=calc.dy;updated.df=calc.df;updated.isDv=calc.isDv;}
+    if(calc){
+      updated.dy=calc.dy;
+      updated.df=calc.df;
+      updated.isDv=calc.isDv;
+    }
     D.h=D.h.map(x=>x.id===id?updated:x);
     saveD();
   }catch{D.h=D.h.map(x=>x.id===id?{...x,divHistory:[]}:x);}
@@ -565,7 +570,7 @@ function goDetail(id){
   document.getElementById('main-page').style.display='none';
   document.getElementById('detail-page').style.display='block';
   const h=D.h.find(x=>x.id===id);
-  if(h&&h.isDv&&h.dy>=3&&(!h.divHistory||(!h.divAt||Date.now()-h.divAt>86400000)))fetchDivs(id);
+  if(h&&(!h.divHistory||!h.divAt||(Date.now()-h.divAt>86400000)))fetchDivs(id);
   renderDetail(id);
 }
 function goBack(){
@@ -611,7 +616,7 @@ function renderDetail(id){
 
   /* 배당 내역 섹션 */
   let divSec='';
-  if(h.isDv&&h.dy>=3){
+  if(true){
     const isLdDiv=LOADING.has(id);
     if(isLdDiv&&!h.divHistory){
       divSec=`<div class="dcard"><div class="dcard-ttl">직전 12개월 배당</div><div style="text-align:center;padding:16px;color:#aaa"><span class="spin-sm"></span> 조회 중...</div></div>`;
@@ -713,7 +718,7 @@ function renderDetail(id){
   <div class="drow"><span class="dl">평균 매수가</span><span class="dv">${fN(h.avgCost)}원</span></div>
   <div class="drow"><span class="dl">보유 수량</span><span class="dv">${fN(h.qty)}주</span></div>
   <div class="drow"><span class="dl">매수 원금</span><span class="dv">${fmt(h.avgCost*h.qty)}</span></div>
-  ${h.isDv&&h.dy>=3?`
+  ${h.dy>0?`
   <div class="drow"><span class="dl">연 배당수익률 <span style="font-size:10px;color:#aaa">${h.divHistory?.length?'(12개월 실적)':'(추정)'}</span></span><span class="dv" style="color:#d97706">${h.dy.toFixed(2)}% · ${h.df}</span></div>
   <div class="drow"><span class="dl">세전 월 예상배당</span><span class="dv" style="color:#d97706">${fmt(ann/12)}</span></div>
   <div class="drow"><span class="dl">세후 월 예상배당</span><span class="dv" style="color:#16a34a">${(h.acct||'normal')==='normal'?fmt(ann/12*0.846):fmt(ann/12)+' (절세)'}</span></div>
@@ -1052,19 +1057,40 @@ function closeDD(){
   SRCH=[];
   if(_srchTimer){clearTimeout(_srchTimer);_srchTimer=null;}
 }
-/* 이벤트 위임 초기화 */
+/* 드롭다운 초기화 - flag 방식으로 blur/click 타이밍 충돌 방지 */
+let _ddPicking=false;
 function initDD(){
   const dd=document.getElementById('srch-dd');
   const inp=document.getElementById('srch-inp');
   if(!dd||!inp)return;
+
+  /* 드롭다운 아이템 클릭 시: flag 세우고 선택 */
   dd.addEventListener('mousedown',function(e){
-    e.preventDefault();
     const item=e.target.closest('[data-i]');
-    if(item){const x=SRCH[parseInt(item.getAttribute('data-i'))];if(x)pickResult(x);}
+    if(item){
+      e.preventDefault(); /* input blur 방지 */
+      _ddPicking=true;
+      const x=SRCH[parseInt(item.getAttribute('data-i'))];
+      if(x){
+        pickResult(x);
+        _ddPicking=false;
+      }
+    }
   });
+
+  /* input 입력 */
   inp.addEventListener('input',function(){doSearch(this.value);});
-  inp.addEventListener('blur',function(){setTimeout(closeDD,150);});
-  document.addEventListener('click',function(e){if(!dd.contains(e.target)&&e.target!==inp)closeDD();});
+
+  /* input blur - picking 중이면 닫지 않음 */
+  inp.addEventListener('blur',function(){
+    if(_ddPicking){_ddPicking=false;return;}
+    setTimeout(closeDD,200);
+  });
+
+  /* 외부 클릭으로 닫기 */
+  document.addEventListener('click',function(e){
+    if(!dd.contains(e.target)&&e.target!==inp)closeDD();
+  });
 }
 
 /* ════════════ 모달 ════════════ */
@@ -1106,7 +1132,7 @@ async function submitAdd(){
   const sym=dbI?dbI.s:(nm.match(/^[A-Z]{1,5}$/)?nm.toUpperCase():toSym(nm));
   const dy=dbI?dbI.dy:0,df=dbI?dbI.df:'없음';
   const id=Date.now();
-  D.h.push({id,n:nm,sym,avg,avgCost:avg,qty,cur:avg,dy,df,isDv:dy>0,acct:CUR_ACCT,buyDate:dt,err:0,
+  D.h.push({id,n:nm,sym,avg,avgCost:avg,qty,cur:avg,dy,df,isDv:true,acct:CUR_ACCT,buyDate:dt,err:0,
     purchases:[{pid:Date.now(),date:dt,qty,avg,acct:CUR_ACCT}]});
   saveD();closeAddModal();render();
   if(!isKR(sym))await getRate();
@@ -1125,7 +1151,7 @@ function setBusy(b){const btn=document.getElementById('rf-btn');if(btn)btn.style
 
 /* ════════════ 백그라운드 배당 조회 ════════════ */
 async function prefetchDivs(){
-  for(const h of D.h.filter(x=>x.isDv&&x.dy>0)){
+  for(const h of D.h){
     if(!h.divHistory||!h.divAt||(Date.now()-h.divAt)>86400000){
       await fetchDivs(h.id);
       await new Promise(r=>setTimeout(r,400));
