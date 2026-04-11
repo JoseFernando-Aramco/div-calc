@@ -792,27 +792,32 @@ let SRCH=[],_sid=0,_stimer=null;
 function renderDD(r){
   const dd=document.getElementById('srch-dd');
   if(!r||!r.length){dd.className='srch-dd';dd.innerHTML='';return;}
-  dd.innerHTML=r.map((x,i)=>`<div class="dd-item" data-i="${i}">
-    <div class="dd-nm">${x.n}${x.dy>=10?'<span class="bdg" style="background:#fff7ed;color:#d97706">고배당</span>':x.dy>=4?'<span class="bdg" style="background:#f0fdf4;color:#16a34a">배당주</span>':''}
-    <span style="font-size:10px;color:#ccc;margin-left:4px">${x.s}</span></div>
-    <div class="dd-sub">${x.kr?'🇰🇷 국내':x.api?'🇺🇸 미국':'📋 DB'} · ${x.dy>0?'배당 '+x.dy+'% · '+x.df:'배당없음'}</div>
-  </div>`).join('');
+  dd.innerHTML=r.map((x,i)=>{
+    if(x.direct)return '<div class="dd-item" data-i="'+i+'"><div class="dd-nm" style="color:#4f46e5">📌 '+x.s+' 직접 추가</div><div class="dd-sub">종목코드 직접 입력 · 가격 자동 조회</div></div>';
+    return '<div class="dd-item" data-i="'+i+'"><div class="dd-nm">'+x.n+(x.dy>=10?'<span class="bdg" style="background:#fff7ed;color:#d97706">고배당</span>':x.dy>=4?'<span class="bdg" style="background:#f0fdf4;color:#16a34a">배당주</span>':'')+'<span style="font-size:10px;color:#ccc;margin-left:4px">'+x.s+'</span></div><div class="dd-sub">'+(x.kr?'🇰🇷 국내':x.api?'🇺🇸 미국':'📋 DB')+' · '+(x.dy>0?'배당 '+x.dy+'% · '+x.df:'배당없음')+'</div></div>';
+  }).join('');
   dd.className='srch-dd on';
 }
 
-async function naverSearch(q){
+async function krSearch(q){
+  /* Yahoo Finance 검색 - 한국 ETF/주식 이름+코드 반환 */
   try{
-    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)+'&q_enc=UTF-8&st=111&sug=1&u1=1&u2=1&u3=1&u4=1&u5=1&r_format=json&limit=15';
-    const txt=await tout(Promise.any(PX.map(px=>fetch(px(url)).then(r=>{if(!r.ok)throw 0;return r.text()}))),5000);
+    const url='https://query1.finance.yahoo.com/v1/finance/search?q='+encodeURIComponent(q)+'&lang=ko&region=KR&quotesCount=15&newsCount=0&enableFuzzyQuery=true&enableCb=false';
+    const txt=await tout(Promise.any(PX.map(function(px){return fetch(px(url)).then(function(r){if(!r.ok)throw 0;return r.text();});})),5000);
     const s=txt.includes('"contents"')?JSON.parse(txt).contents:txt;
     const j=JSON.parse(s);
-    const items=(j&&j.items&&j.items[0])||[];
-    return items.slice(0,12).map(function(it){
-      const code=it[0],name=it[1];
-      return{n:name,s:code+'.KS',dy:0,df:'없음',kr:true};
-    });
+    const quotes=(j&&j.quotes)||[];
+    return quotes
+      .filter(function(x){return x.symbol&&(x.symbol.endsWith('.KS')||x.symbol.endsWith('.KQ'));})
+      .slice(0,12)
+      .map(function(x){
+        const name=x.longname||x.shortname||x.symbol;
+        const dbI=DB.find(function(d){return d.s===x.symbol||d.n===name;});
+        return dbI?Object.assign({},dbI,{kr:true}):{n:name,s:x.symbol,dy:0,df:'없음',kr:true};
+      });
   }catch(e){return[];}
 }
+
 
 async function fhSearch(q){
   try{
@@ -823,7 +828,7 @@ async function fhSearch(q){
   }catch(e){return[];}
 }
 
-function isKR(q){return /[\uAC00-\uD7A3]/.test(q)||/^\d{6}$/.test(q.trim());}
+function isKR(q){return /[\uAC00-\uD7A3]/.test(q)||/^\d{4,6}$/.test(q.trim());}
 
 function doSearch(q){
   const dd=document.getElementById('srch-dd');
@@ -831,15 +836,24 @@ function doSearch(q){
   const myId=++_sid;
   const ql=q.toLowerCase().replace(/\s+/g,'');
   const local=DB.filter(function(x){return x.n.toLowerCase().replace(/\s+/g,'').includes(ql)||x.s.toLowerCase().includes(ql);}).slice(0,10);
-  SRCH=local.slice();
-  if(SRCH.length)renderDD(SRCH);
-  else{dd.innerHTML='<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center"><span class="spin-sm"></span> 검색 중...</div>';dd.className='srch-dd on';}
+
+  /* 6자리 코드 직접 입력시 즉시 옵션 표시 */
+  const is6=(/^\d{6}$/).test(q.trim());
+  if(is6){
+    const direct={n:'종목코드 '+q.trim(),s:q.trim()+'.KS',dy:0,df:'없음',kr:true,direct:true};
+    SRCH=[direct,...local];
+    renderDD(SRCH);
+  }else{
+    SRCH=local.slice();
+    if(SRCH.length)renderDD(SRCH);
+    else{dd.innerHTML='<div style="padding:12px 14px;font-size:12px;color:#aaa;text-align:center"><span class="spin-sm"></span> 검색 중...</div>';dd.className='srch-dd on';}
+  }
   if(_stimer)clearTimeout(_stimer);
   _stimer=setTimeout(async function(){
-    const useKR=isKR(q)||q.length<=6;
-    const useUS=!isKR(q);
+    const useKR=true;  /* 항상 국내 검색 */
+    const useUS=!isKR(q);  /* 영문일 때만 미국 검색 */
     const [krRes,usRes]=await Promise.all([
-      useKR?naverSearch(q):Promise.resolve([]),
+      useKR?krSearch(q):Promise.resolve([]),
       useUS?fhSearch(q):Promise.resolve([]),
     ]);
     if(_sid!==myId)return;
@@ -864,7 +878,16 @@ function closeDD(){
 
 function pickDD(x){
   const inp=document.getElementById('srch-inp');
-  inp.value=x.kr?x.n:(x.api?x.s:x.n);
+  if(x.direct){
+    /* 6자리 코드 직접 입력 - 코드를 이름으로 저장 후 심볼로 처리 */
+    inp.value=x.s.replace('.KS','');
+  }else if(x.kr){
+    inp.value=x.n;
+  }else if(x.api){
+    inp.value=x.s;
+  }else{
+    inp.value=x.n;
+  }
   closeDD();
   setTimeout(function(){const el=document.getElementById('f-avg');if(el)el.focus();},30);
 }
@@ -917,14 +940,16 @@ async function submitAdd(){
   const dt=document.getElementById('f-date').value;
   if(!nm||!avg||!qty){alert('종목명, 평단가, 수량을 입력해주세요');return;}
   /* DB에서 찾기 (이름 또는 심볼로) */
-  const dbI=DB.find(x=>x.n===nm||x.s.toUpperCase()===nm.toUpperCase()||x.s.replace('.KS','').toUpperCase()===nm.toUpperCase());
-  let sym,dy,df;
-  if(dbI){sym=dbI.s;dy=dbI.dy;df=dbI.df;}
-  else if(nm.match(/^\d{6}$/)){sym=nm+'.KS';dy=0;df='없음';}  /* 종목코드 직접 입력 */
-  else if(nm.match(/^[A-Z]{1,6}$/)){sym=nm;dy=0;df='없음';}    /* 미국 심볼 */
-  else{sym=toSym(nm);dy=0;df='없음';}
+  const nm6=nm.match(/^\d{6}$/);  /* 6자리 코드 직접 입력 */
+  const dbI=DB.find(x=>x.n===nm||x.s.toUpperCase()===nm.toUpperCase()||x.s.replace('.KS','').replace('.KQ','').toUpperCase()===nm.toUpperCase());
+  let sym,dy,df,displayName;
+  if(nm6){sym=nm+'.KS';dy=0;df='없음';displayName=nm;}  /* 코드 직접 */
+  else if(dbI){sym=dbI.s;dy=dbI.dy;df=dbI.df;displayName=dbI.n;}
+  else if(nm.match(/^[A-Z]{1,6}$/)){sym=nm;dy=0;df='없음';displayName=nm;}
+  else{sym=toSym(nm);dy=0;df='없음';displayName=nm;}
+  const finalName=displayName||nm;
   const id=Date.now();
-  D.h.push({id,n:nm,sym,avg,avgCost:avg,qty,cur:avg,dy,df,acct:CACCT,buyDate:dt,err:0,purchases:[{pid:id,date:dt,qty,avg,acct:CACCT}]});
+  D.h.push({id,n:finalName,sym,avg,avgCost:avg,qty,cur:avg,dy,df,acct:CACCT,buyDate:dt,err:0,purchases:[{pid:id,date:dt,qty,avg,acct:CACCT}]});
   sv();closeAdd();render();
   if(!isKR(sym))await getRate();
   fetchPrice(id);
