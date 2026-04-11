@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+]<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -208,26 +208,26 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f2f2f7;co
   <div class="mt">종목 추가</div>
 
   <!-- 계좌 유형 상단 선택 -->
-  <div style="display:flex;gap:8px;margin-bottom:16px">
+  <div style="display:flex;gap:8px;margin-bottom:4px">
     <button id="acctNormal" onclick="setModalAcct('normal')"
-      style="flex:1;padding:12px 0;border-radius:10px;border:2px solid #4f46e5;background:#4f46e5;color:#fff;font-size:14px;font-weight:700;cursor:pointer">
+      style="flex:1;padding:13px 0;border-radius:10px;border:2px solid #4f46e5;background:#4f46e5;color:#fff;font-size:14px;font-weight:700;cursor:pointer">
       일반계좌
     </button>
     <button id="acctIsa" onclick="setModalAcct('isa')"
-      style="flex:1;padding:12px 0;border-radius:10px;border:2px solid #e0e0e0;background:#fff;color:#888;font-size:14px;font-weight:600;cursor:pointer">
+      style="flex:1;padding:13px 0;border-radius:10px;border:2px solid #e0e0e0;background:#fff;color:#888;font-size:14px;font-weight:600;cursor:pointer">
       ISA
     </button>
     <button id="acctIrp" onclick="setModalAcct('irp')"
-      style="flex:1;padding:12px 0;border-radius:10px;border:2px solid #e0e0e0;background:#fff;color:#888;font-size:14px;font-weight:600;cursor:pointer">
+      style="flex:1;padding:13px 0;border-radius:10px;border:2px solid #e0e0e0;background:#fff;color:#888;font-size:14px;font-weight:600;cursor:pointer">
       IRP
     </button>
   </div>
   <div id="acctHint" style="font-size:11px;color:#888;text-align:center;margin:-10px 0 14px;"></div>
 
-  <div class="fg srch-wrap">
+  <div class="fg" style="position:relative">
     <div class="fl">종목명</div>
-    <div class="iw"><input class="inp" id="aName" placeholder="삼성전자, JEPQ, KODEX…" autocomplete="off" oninput="doSrch(this.value)" onblur="setTimeout(closeSrchDD,100)"></div>
-    <div class="srch-dd" id="srchDD"></div>
+    <div class="iw"><input class="inp" id="aName" placeholder="삼성전자, JEPQ, KODEX…" autocomplete="off" oninput="doSrch(this.value)" onblur="setTimeout(closeSrchDD,150)"></div>
+    <div class="srch-dd" id="srchDD" onmousedown="event.preventDefault()"></div>
   </div>
   <div class="fr">
     <div class="fg"><div class="fl">평균 매수가 *</div><div class="iw"><input class="inp" id="aAvg" type="number" inputmode="numeric" placeholder="50000"><span class="suf">원</span></div></div>
@@ -786,49 +786,69 @@ function delH(id){
 }
 
 /* ── 추가 ── */
+let SRCH_RESULTS=[];
 function doSrch(q){
   const dd=document.getElementById('srchDD');
-  if(!q.trim()){closeSrchDD();return;}
+  if(!q||!q.trim()){closeSrchDD();return;}
   const ql=q.toLowerCase().replace(/\s+/g,'');
-  const m=DB.filter(x=>{
+  SRCH_RESULTS=DB.filter(x=>{
     const nl=x.n.toLowerCase().replace(/\s+/g,'');
     return nl.includes(ql)||x.s.toLowerCase().includes(ql);
   }).slice(0,20);
-  if(!m.length){closeSrchDD();return;}
-  /* onmousedown + preventDefault → 입력창 포커스 유지하면서 선택 가능 */
-  dd.innerHTML=m.map(x=>`<div class="ddi" onmousedown="event.preventDefault();pickSrch('${x.n.replace(/'/g,"\\'")}','${x.s}',${x.dy},'${x.df}')"><div class="din">${x.n}</div><div class="dis">${x.s} · ${x.isDv?`배당 ${x.dy}% · ${x.df}`:'배당없음'}</div></div>`).join('');
+  if(!SRCH_RESULTS.length){closeSrchDD();return;}
+  dd.innerHTML=SRCH_RESULTS.map((x,i)=>`<div class="ddi" data-idx="${i}"><div class="din">${x.n}</div><div class="dis">${x.s} \xb7 ${x.isDv?'\ubc30\ub2f9 '+x.dy+'% \xb7 '+x.df:'\ubc30\ub2f9\uc5c6\uc74c'}</div></div>`).join('');
   dd.className='srch-dd show';
 }
 function closeSrchDD(){
   const dd=document.getElementById('srchDD');
   if(dd){dd.className='srch-dd';dd.innerHTML='';}
+  SRCH_RESULTS=[];
 }
-function pickSrch(n,s,dy,df){
-  document.getElementById('aName').value=n;
-  document.getElementById('aDy').value=dy||'';
-  document.getElementById('aDf').value=df||'없음';
-  /* 즉시 닫기 */
-  const dd=document.getElementById('srchDD');
-  dd.className='srch-dd'; dd.innerHTML='';
+function pickSrch(x){
+  document.getElementById('aName').value=x.n;
+  document.getElementById('aDy').value=x.dy||'';
+  document.getElementById('aDf').value=x.df||'없음';
+  closeSrchDD();
   document.getElementById('aAvg').focus();
 }
-document.addEventListener('click',e=>{if(!e.target.closest('.srch-wrap'))document.getElementById('srchDD').className='srch-dd';});
+/* 드롭다운 이벤트 위임 - srchDD는 항상 DOM에 존재하므로 바로 등록 */
+function initSrchDD(){
+  var dd=document.getElementById('srchDD');
+  if(!dd)return;
+  dd.addEventListener('mousedown',function(e){
+    e.preventDefault();
+    var item=e.target.closest('[data-idx]');
+    if(item){
+      var x=SRCH_RESULTS[parseInt(item.getAttribute('data-idx'))];
+      if(x)pickSrch(x);
+    }
+  });
+}
+document.addEventListener('click',function(e){
+  var dd=document.getElementById('srchDD');
+  var inp=document.getElementById('aName');
+  if(dd&&inp&&!dd.contains(e.target)&&e.target!==inp)closeSrchDD();
+});
 let MODAL_ACCT='normal';
+const ACCT_COLORS={normal:'#4f46e5',isa:'#16a34a',irp:'#d97706'};
 function setModalAcct(v){
   MODAL_ACCT=v;
-  const cfg={
-    normal:{label:'일반계좌',hint:'배당소득세 15.4% 부과'},
-    isa:{label:'ISA',hint:'비과세 한도 내 배당소득세 0%'},
-    irp:{label:'IRP',hint:'세액공제 혜택 · 55세 이후 수령'},
+  const hints={
+    normal:'배당소득세 15.4% 부과',
+    isa:'비과세 한도 내 배당소득세 0%',
+    irp:'세액공제 혜택 · 55세 이후 수령',
   };
-  ['Normal','Isa','Irp'].forEach(k=>{
+  [['Normal','normal'],['Isa','isa'],['Irp','irp']].forEach(([k,key])=>{
     const btn=document.getElementById('acct'+k);
-    const isOn=v===k.toLowerCase();
-    btn.style.background=isOn?'#4f46e5':'#fff';
+    const c=ACCT_COLORS[key];
+    const isOn=v===key;
+    btn.style.background=isOn?c:'#fff';
     btn.style.color=isOn?'#fff':'#888';
-    btn.style.borderColor=isOn?'#4f46e5':'#e0e0e0';
+    btn.style.borderColor=isOn?c:'#e0e0e0';
   });
-  document.getElementById('acctHint').textContent=cfg[v].hint;
+  const hint=document.getElementById('acctHint');
+  hint.textContent=hints[v];
+  hint.style.color=ACCT_COLORS[v];
 }
 function getKoreanDateStr(){
   const now=new Date();
@@ -925,6 +945,7 @@ function forceClose(){hideG();LDALL=false;setBusy(false);LDS.clear();renderAll()
 function setBusy(b){const btn=document.getElementById('rfBtn');if(btn)btn.style.animation=b?'sp .75s linear infinite':'none';}
 
 renderAll();
+initSrchDD();
 /* 백그라운드 배당 데이터 미리 로딩 */
 setTimeout(prefetchAllDivs, 1000);
 </script>
