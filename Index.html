@@ -150,6 +150,7 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
   <div class="io-row">
     <button class="io-btn" onclick="exportData()">📤 내보내기</button>
     <button class="io-btn" onclick="document.getElementById('importFile').click()">📥 불러오기</button>
+    <button class="io-btn" onclick="openSsImport()" style="background:#eff6ff;color:#2563eb;border-color:#bfdbfe">📸 스크린샷</button>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
   </div>
   <div id="frow" style="display:none;margin-bottom:8px">
@@ -285,6 +286,58 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
   <div class="mbtns">
     <button class="bcn" onclick="document.getElementById('goalOv').classList.remove('show')">취소</button>
     <button class="bsb" onclick="saveGoal()">저장</button>
+  </div>
+</div>
+</div>
+
+<!-- 스크린샷 가져오기 모달 -->
+
+<div class="ov" id="ssOv" onclick="if(event.target===this)this.classList.remove('show')">
+<div class="modal" onclick="event.stopPropagation()" style="max-height:92vh;overflow-y:auto">
+  <div class="mt">📸 스크린샷으로 가져오기</div>
+  <div style="font-size:12px;color:#888;margin-bottom:14px;line-height:1.6">증권사 앱의 보유종목 스크린샷을 올리면 AI가 종목·수량·평단·계좌를 자동으로 인식합니다.</div>
+
+  <!-- API 키 입력 -->
+
+  <div style="margin-bottom:12px">
+    <div class="fl" style="margin-bottom:5px">Anthropic API Key <span style="font-size:10px;color:#aaa">(최초 1회, 저장됨)</span></div>
+    <div class="iw">
+      <input class="inp" id="ssApiKey" type="password" placeholder="sk-ant-..." style="font-size:13px">
+    </div>
+    <div style="font-size:10px;color:#aaa;margin-top:4px">
+      <a href="https://console.anthropic.com" target="_blank" style="color:#2563eb">console.anthropic.com</a>에서 발급 · 이 기기에만 저장됩니다
+    </div>
+  </div>
+
+  <!-- 이미지 업로드 -->
+
+  <div id="ssDropZone" onclick="document.getElementById('ssFileInput').click()" style="border:2px dashed #e8e3d8;border-radius:12px;padding:24px;text-align:center;cursor:pointer;margin-bottom:12px;background:#f9f8f5;transition:all .2s">
+    <div style="font-size:28px;margin-bottom:6px">🖼️</div>
+    <div style="font-size:13px;color:#888">탭해서 이미지 선택</div>
+    <div style="font-size:11px;color:#bbb;margin-top:3px">PNG · JPG 지원</div>
+  </div>
+  <input type="file" id="ssFileInput" accept="image/*" style="display:none" onchange="onSsFile(event)">
+
+  <!-- 미리보기 -->
+
+  <div id="ssPreview" style="display:none;margin-bottom:12px">
+    <img id="ssPreviewImg" style="width:100%;border-radius:10px;max-height:200px;object-fit:contain;background:#f3f3f1">
+  </div>
+
+  <!-- 분석 상태 -->
+
+  <div id="ssStatus" style="display:none;font-size:12px;color:#2563eb;text-align:center;padding:10px 0">
+    <span class="spin"></span> AI 분석 중...
+  </div>
+
+  <!-- 파싱 결과 -->
+
+  <div id="ssResult" style="display:none;margin-bottom:12px"></div>
+
+  <div class="mbtns">
+    <button class="bcn" onclick="document.getElementById('ssOv').classList.remove('show')">닫기</button>
+    <button class="bsb" id="ssAnalyzeBtn" onclick="runSsAnalyze()" style="display:none">🔍 분석하기</button>
+    <button class="bsb" id="ssImportBtn" onclick="confirmSsImport()" style="display:none;background:#16a34a;border-color:#16a34a">✅ 포트폴리오에 추가</button>
   </div>
 </div>
 </div>
@@ -770,6 +823,157 @@ ${acctSummary?`<div class="ccard" style="margin-bottom:10px"><div class="cttl">�
   return`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><div><span style="font-size:13px;font-weight:700">${x.n}</span><span class="cbadge" style="margin-left:6px">${x.df}</span>${lbl}</div><div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#d97706">${fmt(Math.round(x.monAfter))}/월</div><div style="font-size:11px;color:#aaa">${x.tx>0?`세전 ${fmt(Math.round(x.mon))} → 세후`:'비과세'} · ${fN(x.qty)}주 · ${x.dy.toFixed(1)}%</div></div></div><div class="sbg"><div class="sbar" style="width:${x.mon/mxM*100}%;background:${COLORS[x.idx%COLORS.length]}"></div></div></div>`;
 }).join('')}</div>
 <div class="ccard"><div class="cttl" style="display:flex;justify-content:space-between;align-items:center"><span>월별 세후 배당 입금 예상</span><button onclick="openReinvest()" style="font-size:11px;padding:4px 10px;border-radius:7px;border:1px solid #bfdbfe;background:#eff6ff;color:#2563eb;cursor:pointer;font-weight:600">🔄 재매수 시뮬</button></div><div class="mbars">${md.map((m,i)=>`<div class="mcol"><div class="mbar" style="height:${m.t>0?Math.max(m.t/mxB*68,6):4}px;background:${m.t>0?'#2563eb':'#e8e3d8'}"></div><div class="mlbl">${i+1}</div></div>`).join('')}</div><div class="mpills">${md.map((m,i)=>`<span class="mpill" style="background:${m.t>0?'#eff6ff':'#f9f8f5'};color:${m.t>0?'#1d4ed8':'#bbb'}">${i+1}월 ${m.t>0?fmt(Math.round(m.t)):'—'}</span>`).join('')}</div><div style="font-size:10px;color:#aaa;margin-top:10px;padding-top:8px;border-top:1px solid #e8e3d8">※ 일반계좌 15.4% 차감 · ISA/IRP 비과세 · 분기배당 3·6·9·12월 기준</div></div>`;
+}
+
+/* ===== SCREENSHOT IMPORT ===== */
+let SS_FILE=null, SS_PARSED=[];
+
+function openSsImport(){
+  // 저장된 API 키 불러오기
+  const saved=localStorage.getItem('anthropic_key')||'';
+  document.getElementById('ssApiKey').value=saved;
+  SS_FILE=null; SS_PARSED=[];
+  document.getElementById('ssPreview').style.display='none';
+  document.getElementById('ssStatus').style.display='none';
+  document.getElementById('ssResult').style.display='none';
+  document.getElementById('ssAnalyzeBtn').style.display='none';
+  document.getElementById('ssImportBtn').style.display='none';
+  document.getElementById('ssDropZone').style.display='block';
+  document.getElementById('ssOv').classList.add('show');
+}
+
+function onSsFile(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  SS_FILE=file;
+  const url=URL.createObjectURL(file);
+  document.getElementById('ssPreviewImg').src=url;
+  document.getElementById('ssPreview').style.display='block';
+  document.getElementById('ssDropZone').style.display='none';
+  document.getElementById('ssAnalyzeBtn').style.display='block';
+  document.getElementById('ssResult').style.display='none';
+  document.getElementById('ssImportBtn').style.display='none';
+  // 파일 input 초기화 (같은 파일 재선택 허용)
+  e.target.value='';
+}
+
+async function runSsAnalyze(){
+  if(!SS_FILE){alert('이미지를 먼저 선택해주세요.');return;}
+  const apiKey=document.getElementById('ssApiKey').value.trim();
+  if(!apiKey||!apiKey.startsWith('sk-ant-')){alert('유효한 Anthropic API 키를 입력해주세요.\n(sk-ant- 로 시작)');return;}
+  localStorage.setItem('anthropic_key',apiKey);
+
+  document.getElementById('ssStatus').style.display='block';
+  document.getElementById('ssAnalyzeBtn').style.display='none';
+  document.getElementById('ssResult').style.display='none';
+  document.getElementById('ssImportBtn').style.display='none';
+
+  try{
+    // 이미지 → base64
+    const b64=await new Promise((res,rej)=>{
+      const r=new FileReader();
+      r.onload=e=>res(e.target.result.split(',')[1]);
+      r.onerror=rej;
+      r.readAsDataURL(SS_FILE);
+    });
+    const mime=SS_FILE.type||'image/jpeg';
+
+    const prompt=`이 이미지는 증권사 앱의 보유종목 화면입니다.
+화면에서 보이는 모든 종목의 매수 정보를 추출해주세요.
+
+아래 JSON 배열 형식으로만 응답하세요 (다른 텍스트 없이):
+[
+  {
+    "name": "종목명 (ETF나 주식 이름 전체)",
+    "code": "종목코드 (숫자 6자리, 없으면 null)",
+    "qty": 수량(숫자),
+    "avgPrice": 평균단가(숫자, 원화),
+    "acct": "general 또는 tax",
+    "acctName": "계좌명 (ISA, IRP, 연금저축, 위탁 등 화면에 보이는 그대로)"
+  }
+]
+
+계좌 분류 기준:
+- ISA, IRP, 개인형IRP, 연금저축, 개인종합자산관리계좌, 신연금저축 → "tax"
+- 위탁, 일반, MTS 등 → "general"
+
+종목이 여러 계좌에 나뉘어 있으면 각각 별도 항목으로 추출하세요.
+반드시 JSON만 응답하세요.`;
+
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-opus-4-5',
+        max_tokens:2000,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mime,data:b64}},
+          {type:'text',text:prompt}
+        ]}]
+      })
+    });
+
+    if(!resp.ok){
+      const err=await resp.json().catch(()=>({}));
+      throw new Error(err?.error?.message||`API 오류 (${resp.status})`);
+    }
+    const data=await resp.json();
+    const raw=data.content.map(c=>c.text||'').join('');
+    const clean=raw.replace(/```json|```/g,'').trim();
+    SS_PARSED=JSON.parse(clean);
+
+    if(!Array.isArray(SS_PARSED)||!SS_PARSED.length)throw new Error('인식된 종목이 없습니다.');
+
+    // 결과 표시
+    const rows=SS_PARSED.map((x,i)=>`
+<div style="display:flex;align-items:center;gap:10px;padding:9px 0;${i>0?'border-top:1px solid #f3f3f1':''}">
+  <div style="flex:1;min-width:0">
+    <div style="font-size:13px;font-weight:700">${x.name}</div>
+    <div style="font-size:11px;color:#aaa;margin-top:2px">${x.acctName||''} · ${fN(x.qty)}주 · 평단 ${fN(x.avgPrice)}원</div>
+  </div>
+  <span style="font-size:10px;padding:2px 7px;border-radius:5px;${x.acct==='tax'?'background:#f0fdf4;color:#16a34a':'background:#f3f4f6;color:#888'}">${x.acct==='tax'?'절세':'일반'}</span>
+</div>`).join('');
+
+    document.getElementById('ssResult').innerHTML=`
+<div style="background:#f0fdf4;border-radius:10px;padding:10px 13px;margin-bottom:10px">
+  <div style="font-size:12px;font-weight:700;color:#16a34a;margin-bottom:2px">✅ ${SS_PARSED.length}개 항목 인식 완료</div>
+  <div style="font-size:11px;color:#888">아래 내용을 확인 후 추가하세요</div>
+</div>
+<div style="border:1px solid #e8e3d8;border-radius:10px;padding:0 12px">${rows}</div>`;
+    document.getElementById('ssResult').style.display='block';
+    document.getElementById('ssImportBtn').style.display='block';
+    document.getElementById('ssAnalyzeBtn').style.display='block';
+    document.getElementById('ssAnalyzeBtn').textContent='🔄 재분석';
+
+  }catch(err){
+    document.getElementById('ssResult').innerHTML=`<div style="background:#fef2f2;border-radius:10px;padding:10px 13px;font-size:12px;color:#dc2626">❌ 오류: ${err.message}</div>`;
+    document.getElementById('ssResult').style.display='block';
+    document.getElementById('ssAnalyzeBtn').style.display='block';
+  }
+  document.getElementById('ssStatus').style.display='none';
+}
+
+function confirmSsImport(){
+  if(!SS_PARSED.length)return;
+  let added=0;
+  SS_PARSED.forEach(x=>{
+    if(!x.name||!x.qty||!x.avgPrice)return;
+    const sym=x.code?x.code+'.KS':'';
+    const id=Date.now()+Math.floor(Math.random()*1000)+added;
+    const buys=[{id:id+'_0',qty:x.qty,price:x.avgPrice,date:new Date().toISOString().split('T')[0],acct:x.acct||'general'}];
+    D.h.push({id,n:x.name,sym,avg:x.avgPrice,avgCost:x.avgPrice,qty:x.qty,cur:x.avgPrice,dy:0,df:'없음',isDv:false,err:0,divHistory:undefined,acct:x.acct||'general',memo:'',buys});
+    added++;
+  });
+  save();render();
+  document.getElementById('ssOv').classList.remove('show');
+  // 가격 자동 조회
+  D.h.slice(-added).forEach(h=>{ if(h.sym)fetchOne(h.id); });
+  alert(`${added}개 종목이 추가되었습니다.\n가격을 자동 조회합니다.`);
 }
 
 /* ===== REINVEST SIMULATION ===== */
