@@ -562,11 +562,16 @@ async function refreshAll(){
   await fetchRate();
   for(let i=0;i<D.h.length;i++){
     const h=D.h[i];setGMsg(`[${i+1}/${D.h.length}] ${h.n} 조회 중...`);
-    LDS.add(h.id);
+    LDS.add(h.id);render();
     try{
       const sym=h.sym||toSym(h.n);let p;
-      if(isKR(sym)){p=Math.round(await yahooQuote(sym));}
-      else{p=Math.round((await fhQuote(sym))*D.rate);}
+      if(isKR(sym)){
+        const res=await yahooQuote(sym);
+        p=Math.round(res.price);
+      }else{
+        p=Math.round((await fhQuote(sym))*D.rate);
+      }
+      if(!p||isNaN(p))throw new Error('가격 없음');
       D.h=D.h.map(x=>x.id===h.id?{...x,cur:p,sym,err:0}:x);
     }catch{D.h=D.h.map(x=>x.id===h.id?{...x,err:1}:x);}
     LDS.delete(h.id);
