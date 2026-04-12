@@ -101,10 +101,11 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 .modal{background:#fff;border-radius:20px 20px 0 0;padding:22px 18px 44px;width:100%;max-width:480px;max-height:93vh;overflow-y:auto;overflow-x:hidden;box-sizing:border-box}
 .mt{font-weight:700;font-size:17px;margin-bottom:16px}
 .fl{font-size:12px;color:#888;margin-bottom:4px}
-.fg{margin-bottom:12px}
+.fg{margin-bottom:12px;min-width:0}
+.fr{display:flex;gap:10px}.fr .fg{flex:1;min-width:0}
 .iw{display:flex;align-items:center;background:#f9f8f5;border:1.5px solid #e8e3d8;border-radius:9px;width:100%;box-sizing:border-box}
 .iw:focus-within{border-color:#2563eb}
-.inp{flex:1;padding:11px 12px;border:none;background:transparent;font-size:14px;outline:none;min-width:0;color:#1c1917}
+.inp{flex:1;padding:11px 12px;border:none;background:transparent;font-size:14px;outline:none;min-width:0;width:100%;color:#1c1917}
 .suf{padding-right:10px;font-size:12px;color:#aaa;white-space:nowrap}
 .fr{display:flex;gap:10px}.fr .fg{flex:1}
 .hint{background:#eff6ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#2563eb;margin-bottom:14px;line-height:1.5}
@@ -809,10 +810,38 @@ function renderSim(dvH,tV){
   ${[['월 세후 배당',fmt(Math.round(tMAft)),'#d97706'],['연 세후 배당',fmt(Math.round(tAAft)),'#2563eb'],['세전 배당수익률',aY.toFixed(2)+'%','#16a34a'],['배당주 평가금액',fmt(tD),'#7c3aed']].map(([l,v,c])=>`<div class="scard"><div class="slbl">${l}</div><div class="sval" style="color:${c}">${v}</div></div>`).join('')}
 </div>
 ${acctSummary?`<div class="ccard" style="margin-bottom:10px"><div class="cttl">계좌별 세후 배당</div>${acctSummary}</div>`:''}
-<div class="ccard"><div class="cttl">종목별 월 세후 배당</div>${ss.map(x=>{
-  const lbl=x.acct==='tax'?'<span style="font-size:10px;background:#f0fdf4;color:#16a34a;padding:1px 5px;border-radius:4px;margin-left:5px">절세</span>':'<span style="font-size:10px;background:#f3f4f6;color:#888;padding:1px 5px;border-radius:4px;margin-left:5px">일반</span>';
-  return`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><div><span style="font-size:13px;font-weight:700">${x.n}</span><span class="cbadge" style="margin-left:6px">${x.df}</span>${lbl}</div><div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#d97706">${fmt(Math.round(x.monAfter))}/월</div><div style="font-size:11px;color:#aaa">${x.tx>0?`세전 ${fmt(Math.round(x.mon))} → 세후`:'비과세'} · ${fN(x.qty)}주 · ${x.dy.toFixed(1)}%</div></div></div><div class="sbg"><div class="sbar" style="width:${x.mon/mxM*100}%;background:${COLORS[x.idx%COLORS.length]}"></div></div></div>`;
-}).join('')}</div>
+<div class="ccard"><div class="cttl">종목별 월 세후 배당</div>${(()=>{
+  // 종목별 그룹핑 (같은 종목의 일반+절세 합치기)
+  const groups={};
+  ss.forEach(x=>{
+    if(!groups[x.id])groups[x.id]={...x,monAfterTotal:0,annAfterTotal:0,parts:[]};
+    groups[x.id].monAfterTotal+=x.monAfter;
+    groups[x.id].annAfterTotal+=x.annAfter;
+    groups[x.id].parts.push(x);
+  });
+  const gArr=Object.values(groups);
+  const mxG=Math.max(...gArr.map(g=>g.monAfterTotal),1);
+  return gArr.map((g,gi)=>{
+    const hasMix=g.parts.length>1;
+    const chips=g.parts.map(p=>{
+      const isT=p.acct==='tax';
+      return`<span style="font-size:10px;padding:2px 7px;border-radius:5px;${isT?'background:#f0fdf4;color:#16a34a':'background:#f3f4f6;color:#888'}">${isT?'절세':'일반'} ${fmt(Math.round(p.monAfter))}/월</span>`;
+    }).join(' ');
+    return`<div style="padding:11px 0;${gi>0?'border-top:1px solid #f3f3f1':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div style="min-width:0;flex:1;margin-right:10px">
+          <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.n}</div>
+          <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap">${chips}${hasMix?'':''}<span class="cbadge">${g.df}</span></div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:16px;font-weight:800;color:#d97706">${fmt(Math.round(g.monAfterTotal))}<span style="font-size:11px;font-weight:400;color:#aaa">/월</span></div>
+          <div style="font-size:11px;color:#aaa;margin-top:1px">연 ${fmt(Math.round(g.annAfterTotal))} · ${g.dy.toFixed(1)}%</div>
+        </div>
+      </div>
+      <div class="sbg"><div class="sbar" style="width:${g.monAfterTotal/mxG*100}%;background:${COLORS[g.idx%COLORS.length]}"></div></div>
+    </div>`;
+  }).join('');
+})()}</div>
 <div class="ccard"><div class="cttl" style="display:flex;justify-content:space-between;align-items:center"><span>월별 세후 배당 입금 예상</span><button onclick="openReinvest()" style="font-size:11px;padding:4px 10px;border-radius:7px;border:1px solid #bfdbfe;background:#eff6ff;color:#2563eb;cursor:pointer;font-weight:600">🔄 재매수 시뮬</button></div><div class="mbars">${md.map((m,i)=>`<div class="mcol"><div class="mbar" style="height:${m.t>0?Math.max(m.t/mxB*68,6):4}px;background:${m.t>0?'#2563eb':'#e8e3d8'}"></div><div class="mlbl">${i+1}</div></div>`).join('')}</div><div class="mpills">${md.map((m,i)=>`<span class="mpill" style="background:${m.t>0?'#eff6ff':'#f9f8f5'};color:${m.t>0?'#1d4ed8':'#bbb'}">${i+1}월 ${m.t>0?fmt(Math.round(m.t)):'—'}</span>`).join('')}</div><div style="font-size:10px;color:#aaa;margin-top:10px;padding-top:8px;border-top:1px solid #e8e3d8">※ 일반계좌 15.4% 차감 · ISA/IRP 비과세 · 분기배당 3·6·9·12월 기준</div></div>`;
 }
 
