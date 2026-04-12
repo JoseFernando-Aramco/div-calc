@@ -358,47 +358,41 @@ const PROXIES=[
   u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
 ];
 async function yahooQuote(sym){
-  const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`;
+  const url='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?interval=1d&range=1d';
   for(const mkP of PROXIES){
     try{
       const r=await fetch(mkP(url));if(!r.ok)continue;
       const text=await r.text();
       const j=JSON.parse(text.startsWith('{"contents"')?JSON.parse(text).contents:text);
-      const p=j?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if(p&&p>0)return p;
+      const meta=j?.chart?.result?.[0]?.meta;
+      const p=meta?.regularMarketPrice;
+      if(p&&p>0){
+        // 종목명도 반환 (코드로만 등록된 경우 자동 업데이트용)
+        const name=meta?.longName||meta?.shortName||null;
+        return{price:p,name};
+      }
     }catch{}
   }
   throw new Error('조회실패');
-}
-async function fhQuote(sym){
-  const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(sym)}&token=${FKEY}`);
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const j=await r.json();if(!j.c||j.c<=0)throw new Error('no price');return j.c;
-}
-async function fetchRate(){
-  try{
-    const r=await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
-    const j=await r.json();const rt=j?.rates?.KRW;
-    if(rt&&rt>100)D.rate=Math.round(rt);
-  }catch{}
-}
-async function fhDivs(sym){
-  const to=new Date().toISOString().split('T')[0];
-  const from=new Date(Date.now()-365*24*3600*1000).toISOString().split('T')[0];
-  const r=await fetch(`https://finnhub.io/api/v1/stock/dividend2?symbol=${encodeURIComponent(sym)}&from=${from}&to=${to}&token=${FKEY}`);
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const j=await r.json();
-  return(j||[]).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 }
 
 async function fetchOne(id){
   const h=D.h.find(x=>x.id===id);if(!h)return;
   LDS.add(id);render();
   try{
-    const sym=h.sym||toSym(h.n);let p;
-    if(isKR(sym)){p=Math.round(await yahooQuote(sym));}
-    else{p=Math.round((await fhQuote(sym))*D.rate);}
-    D.h=D.h.map(x=>x.id===id?{...x,cur:p,sym,err:0}:x);
+    const sym=h.sym||toSym(h.n);let p,resolvedName=null;
+    if(isKR(sym)){
+      const res=await yahooQuote(sym);
+      p=Math.round(res.price);
+      // 종목명이 코드 6자리면 Yahoo에서 받은 이름으로 교체
+      if(/^\d{6}$/.test(h.n)&&res.name)resolvedName=res.name;
+    }else{
+      p=Math.round((await fhQuote(sym))*D.rate);
+    }
+    D.h=D.h.map(x=>{
+      if(x.id!==id)return x;
+      return{...x,cur:p,sym,err:0,...(resolvedName?{n:resolvedName}:{})};
+    });
     D.at=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});save();
   }catch{D.h=D.h.map(x=>x.id===id?{...x,err:1}:x);}
   LDS.delete(id);render();
@@ -794,40 +788,64 @@ function setBusy(b){const btn=document.getElementById('rfBtn');btn.className='rf
 
 /* ===== SEARCH AUTOCOMPLETE (Naver Finance 전종목) ===== */
 let _ddTimer=null;
+
 function doSearchDD(q){
   const dd=document.getElementById('searchDD');
   q=q.trim();
   if(!q){dd.style.display='none';return;}
-
   // 로컬 DB 즉시 표시
-  const local=SEARCH_DB.filter(x=>
-    x.n.includes(q)||x.s.toLowerCase().includes(q.toLowerCase())
-  ).slice(0,5);
+  const local=SEARCH_DB.filter(x=>x.n.includes(q)||x.s.toLowerCase().includes(q.toLowerCase())).slice(0,5);
   showDD(dd,local,q);
-
-  // 네이버 자동완성 API (디바운스 200ms)
+  // 디바운스 200ms 후 네이버 API 호출
   if(_ddTimer)clearTimeout(_ddTimer);
-  _ddTimer=setTimeout(()=>fetchNaverAC(q,dd),200);
+  _ddTimer=setTimeout(()=>fetchNaverSearch(q,dd),200);
 }
 
-async function fetchNaverAC(q,dd){
+async function fetchNaverSearch(q,dd){
+  // 6자리 숫자 코드: API 없이 즉시 카드 표시 + 백그라운드에서 이름 시도
+  if(/^\d{4,6}$/.test(q)){
+    const c=q.padStart(6,'0');
+    const sym=c+'.KS';
+    // 즉시 등록 가능한 카드 표시 (이름은 가격 조회 시 자동 업데이트)
+    showDD(dd,[{n:c,s:sym,dy:0,df:'없음',isDv:false,market:'국내주식',_isCode:true}],q);
+    // 백그라운드에서 네이버 AC로 이름 조회 시도
+    try{
+      const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(c)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=11&r_unicode=0&r_escape=1';
+      for(const mkP of PROXIES){
+        try{
+          const r=await fetch(mkP(url));
+          if(!r.ok)continue;
+          const text=await r.text();
+          const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
+          const j=JSON.parse(raw);
+          const allItems=(j.items||[]).flat();
+          const found=allItems.find(x=>x[1]===c);
+          if(found){
+            const name=found[0];
+            const db=SEARCH_DB.find(x=>x.n===name);
+            showDD(dd,[{n:name,s:sym,dy:db?db.dy:0,df:db?db.df:'없음',isDv:db?db.isDv:false,market:'국내주식'}],q);
+          }
+          break;
+        }catch{}
+      }
+    }catch{}
+    return;
+  }
+  // 이름 검색 → 네이버 자동완성 AC
   try{
-    const url=`https://ac.finance.naver.com/ac?q=${encodeURIComponent(q)}&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=11&r_unicode=0&r_escape=1`;
-    // CORS 프록시 순차 시도
+    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=11&r_unicode=0&r_escape=1';
     let j=null;
     for(const mkP of PROXIES){
       try{
-        const r=await fetch(mkP(url),{signal:AbortSignal.timeout(4000)});
+        const r=await fetch(mkP(url));
         if(!r.ok)continue;
         const text=await r.text();
         const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
         j=JSON.parse(raw);
-        break;
+        if(j&&j.items)break;
       }catch{}
     }
     if(!j||!j.items)return;
-
-    // items: [[KOSPI배열],[KOSDAQ배열]]  각 항목: [이름, 코드, ...]
     const results=[];
     (j.items||[]).forEach((group,gi)=>{
       (group||[]).forEach(item=>{
@@ -835,38 +853,34 @@ async function fetchNaverAC(q,dd){
         if(!name||!code)return;
         const market=gi===0?'KOSPI':'KOSDAQ';
         const sym=code+(gi===0?'.KS':'.KQ');
-        // 로컬 DB에 추가 정보 있으면 병합
         const db=SEARCH_DB.find(x=>x.s===sym||x.n===name);
-        results.push({
-          n:name,s:sym,
-          dy:db?db.dy:0,
-          df:db?db.df:'없음',
-          isDv:db?db.isDv:false,
-          market
-        });
+        results.push({n:name,s:sym,dy:db?db.dy:0,df:db?db.df:'없음',isDv:db?db.isDv:false,market});
       });
     });
-
-    // 중복 제거 (로컬 DB와)
     const seen=new Set();
     const merged=[
       ...SEARCH_DB.filter(x=>x.n.includes(q)||x.s.toLowerCase().includes(q.toLowerCase())),
       ...results
     ].filter(x=>{if(seen.has(x.s))return false;seen.add(x.s);return true;}).slice(0,12);
-
     showDD(dd,merged,q);
   }catch{}
 }
 
 function showDD(dd,items,q){
   if(!items.length){dd.style.display='none';return;}
+  const esc=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   dd.innerHTML=items.map(x=>{
-    const hl=n=>n.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'),'<b style="color:#2563eb">$1</b>');
-    const mkt=x.market?`<span style="font-size:10px;background:#f3f3f1;color:#888;padding:1px 5px;border-radius:4px;margin-left:4px">${x.market}</span>`:'';
-    return`<div onclick="pickSearch('${x.n.replace(/'/g,"\\'")}','${x.s}',${x.dy},'${x.df}',${x.isDv?1:0})" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f3f3f1;display:flex;justify-content:space-between;align-items:center">
-      <div><div style="font-size:13px;font-weight:600">${hl(x.n)}${mkt}</div>
-      <div style="font-size:11px;color:#aaa;margin-top:1px">${x.s}${x.isDv&&x.dy>0?` · 배당 ${x.dy}% · ${x.df}`:''}</div></div>
-    </div>`;
+    const isCode=/^\d{6}$/.test(x.n)&&x._isCode;
+    const hl=isCode
+      ?'<b style="color:#2563eb">'+x.n+'</b> <span style="font-size:11px;color:#aaa">— 바로 등록 (이름은 자동 조회)</span>'
+      :x.n.replace(new RegExp('('+esc+')','gi'),'<b style="color:#2563eb">$1</b>');
+    const mkt=x.market?'<span style="font-size:10px;background:#f3f3f1;color:#888;padding:1px 5px;border-radius:4px;margin-left:4px">'+x.market+'</span>':'';
+    const dy2=x.isDv&&x.dy>0?' · 배당 '+x.dy+'% · '+x.df:'';
+    const n2=x.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return'<div onclick="pickSearch(\''+n2+'\',\''+x.s+'\','+x.dy+',\''+x.df+'\','+(x.isDv?1:0)+')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f3f3f1">'
+      +'<div style="font-size:13px;font-weight:600">'+hl+mkt+'</div>'
+      +'<div style="font-size:11px;color:#aaa;margin-top:1px">'+x.s+dy2+'</div>'
+      +'</div>';
   }).join('');
   dd.style.display='block';
 }
