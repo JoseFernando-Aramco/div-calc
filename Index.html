@@ -369,7 +369,7 @@ async function fetchOne(id){
 async function resolveKoreanName(code){
   // 네이버 AC에서 코드로 한국어 종목명 조회
   try{
-    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(code)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=11&r_unicode=0&r_escape=1';
+    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(code)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=20&r_unicode=1&r_escape=1';
     for(const mkP of PROXIES){
       try{
         const r=await fetch(mkP(url));if(!r.ok)continue;
@@ -898,85 +898,82 @@ const SEARCH_DB=[
   {n:'GOOGL',s:'GOOGL',dy:0,  df:'없음',    isDv:false,kr:0},
   {n:'META', s:'META',dy:0.4, df:'분기배당',isDv:true, kr:0},
 ];
-const DYN_KEY='krStockDB_v2';
-const DYN_TTL=12*3600*1000;
+const DYN_KEY='krStockDB_v3';
+const DYN_TTL=24*3600*1000;
 let DYN_DB=[];
-
 
 async function initDynDB(){
   // 캐시 확인
   try{
     const c=JSON.parse(localStorage.getItem(DYN_KEY)||'null');
-    if(c&&Date.now()-c.ts<DYN_TTL&&c.data?.length>100){
+    if(c&&Date.now()-c.ts<DYN_TTL&&c.data?.length>10){
       DYN_DB=c.data;
-      setDbStatus('✅ 국내 종목 '+DYN_DB.length.toLocaleString()+'개',false);
+      setDbStatus('✅ ETF DB '+DYN_DB.length+'개',false);
       return;
     }
   }catch{}
 
-  setDbStatus('⏳ 종목 DB 로딩 중...',true);
-  const result=[];
+  setDbStatus('⏳ ETF DB 로딩 중...',true);
+
   const seen=new Set();
+  const result=[];
 
-  function push(n,s,market,extra){
-    if(!n||!s||seen.has(s))return;
-    seen.add(s);
-    const db=SEARCH_DB.find(x=>x.s===s||x.n===n);
-    const div=db||guessEtfDiv(n);
-    result.push({n,s,dy:div.dy||0,df:div.df||'없음',isDv:div.isDv||false,market});
-  }
-
-  // ── 1. Naver ETF 전체 목록 ──
-  try{
-    const url='https://finance.naver.com/api/sise/etfItemList.nhn';
+  // Naver AC API (r_unicode=1 → JSON 내 한글을 \uXXXX로 반환 → 인코딩 문제 없음)
+  async function acFetch(q){
+    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)
+      +'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540'
+      +'&collapse=1&r_format=json&r_enc=UTF-8&r_lt=50&r_unicode=1&r_escape=1';
     for(const mkP of PROXIES){
       try{
-        const r=await fetch(mkP(url));if(!r.ok)continue;
+        const r=await fetch(mkP(url));
+        if(!r.ok)continue;
         const text=await r.text();
         const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
         const j=JSON.parse(raw);
-        (j?.result?.etfItemList||[]).forEach(e=>push(e.itemname,e.itemcode+'.KS','ETF',null));
-        if(result.length>0)break;
+        if(j&&j.items)return j.items;
       }catch{}
     }
-  }catch{}
+    return null;
+  }
 
-  // ── 2. KRX 전종목 (KOSPI + KOSDAQ) ──
-  for(const[mktId,sfx]of[['STK','.KS'],['KSQ','.KQ']]){
+  function pushItems(items){
+    (items||[]).forEach((group,gi)=>{
+      (group||[]).forEach(item=>{
+        const name=item[0],code=item[1];
+        // 6자리 숫자 코드만 허용 (Z 등 문자 포함 코드 제외)
+        if(!name||!code||!/^\d{6}$/.test(code)||seen.has(code))return;
+        seen.add(code);
+        const sym=code+(gi===0?'.KS':'.KQ');
+        const db=SEARCH_DB.find(x=>x.s===sym||x.n===name);
+        const div=db||guessEtfDiv(name);
+        result.push({n:name,s:sym,dy:div.dy||0,df:div.df||'없음',isDv:div.isDv||false,market:'ETF'});
+      });
+    });
+  }
+
+  // 국내 주요 ETF 브랜드별 검색
+  const queries=['KODEX','TIGER','ACE','RISE','HANARO','SOL','KBSTAR','ARIRANG','KOSEF','KTOP','TIMEFOLIO'];
+  for(const q of queries){
     try{
-      const body='bld=dbms/MDC/STAT/standard/MDCSTAT01501&locale=ko_KR&mktId='+mktId+'&share=1&money=1&csvxls_isNo=false';
-      const target='https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd';
-      for(const mkP of PROXIES){
-        try{
-          const r=await fetch(mkP(target),{
-            method:'POST',
-            headers:{'Content-Type':'application/x-www-form-urlencoded','Referer':'https://data.krx.co.kr/'},
-            body
-          });
-          if(!r.ok)continue;
-          const text=await r.text();
-          const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
-          const j=JSON.parse(raw);
-          const mktName=mktId==='STK'?'KOSPI':'KOSDAQ';
-          (j?.OutBlock_1||[]).forEach(s=>push(s.ISU_ABBRV,s.ISU_SRT_CD+sfx,mktName,null));
-          if((j?.OutBlock_1||[]).length>0)break;
-        }catch{}
-      }
+      const items=await acFetch(q);
+      if(items)pushItems(items);
     }catch{}
   }
 
-  // SEARCH_DB 항목도 병합 (배당 정보 보존)
-  SEARCH_DB.forEach(x=>{if(!seen.has(x.s)){seen.add(x.s);result.push({n:x.n,s:x.s,dy:x.dy,df:x.df,isDv:x.isDv,market:x.kr?'국내':'미국'});}});
+  // SEARCH_DB 병합 (배당 정보 보존)
+  SEARCH_DB.forEach(x=>{
+    const code=x.s.replace(/\.(KS|KQ)$/,'');
+    if(!seen.has(code)&&!/^\d{6}$/.test(code)===false){
+      // 미국 ETF나 개별주는 코드가 숫자 아님 → 그냥 추가
+    }
+    if(!seen.has(x.s)){seen.add(x.s);result.push({n:x.n,s:x.s,dy:x.dy,df:x.df,isDv:x.isDv,market:x.kr?'국내':'미국'});}
+  });
 
-  if(result.length>50){
-    DYN_DB=result;
+  DYN_DB=result;
+  if(result.length>5){
     try{localStorage.setItem(DYN_KEY,JSON.stringify({ts:Date.now(),data:DYN_DB}));}catch{}
   }
-
-  const label=DYN_DB.length>0
-    ?'✅ 국내 종목 '+DYN_DB.length.toLocaleString()+'개'
-    :'⚠️ 네트워크 실패 — 수동 입력 가능';
-  setDbStatus(label,false);
+  setDbStatus(DYN_DB.length>0?'✅ ETF DB '+DYN_DB.length+'개':'⚠️ 네트워크 실패',false);
 }
 
 function setDbStatus(msg,loading){
@@ -1023,7 +1020,7 @@ async function fetchNaverSearch(q,dd,localCount){
     if(found){showDD(dd,[found],q);return;}
     showDD(dd,[{n:c,s:c+'.KS',dy:0,df:'없음',isDv:false,market:'국내주식',_isCode:true}],q);
     try{
-      const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(c)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=11&r_unicode=0&r_escape=1';
+      const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(c)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=20&r_unicode=1&r_escape=1';
       for(const mkP of PROXIES){
         try{
           const r=await fetch(mkP(url));if(!r.ok)continue;
@@ -1043,7 +1040,7 @@ async function fetchNaverSearch(q,dd,localCount){
   }
   if(localCount>=8)return;
   try{
-    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=11&r_unicode=0&r_escape=1';
+    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=20&r_unicode=1&r_escape=1';
     let j=null;
     for(const mkP of PROXIES){
       try{
@@ -1057,7 +1054,8 @@ async function fetchNaverSearch(q,dd,localCount){
     const acR=[];
     (j.items||[]).forEach((group,gi)=>{
       (group||[]).forEach(item=>{
-        const name=item[0],code=item[1];if(!name||!code)return;
+        const name=item[0],code=item[1];
+        if(!name||!code||!/^\d{6}$/.test(code))return; // 6자리 숫자만 허용
         const sym=code+(gi===0?'.KS':'.KQ');
         const db=getAllDB().find(x=>x.s===sym||x.n===name);
         const div=db||guessEtfDiv(name);
