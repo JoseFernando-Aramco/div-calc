@@ -321,7 +321,29 @@ function dyClass(dy){if(dy>=10)return '고배당';if(dy>=4)return '배당주';re
 const PROXIES=[
   u=>'https://corsproxy.io/?'+encodeURIComponent(u),
   u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+  u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u),
 ];
+
+/* Naver AC JSONP — 프록시 없이 직접 호출, CORS 우회 */
+function naverACJsonp(q,limit){
+  return new Promise((res,rej)=>{
+    const id='_nac_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    const s=document.createElement('script');
+    let done=false;
+    const cleanup=()=>{try{s.parentNode&&s.parentNode.removeChild(s);}catch{}delete window[id];};
+    window[id]=(data)=>{if(done)return;done=true;cleanup();res(data);};
+    s.onerror=()=>{if(done)return;done=true;cleanup();rej(new Error('jsonp err'));};
+    setTimeout(()=>{if(done)return;done=true;cleanup();rej(new Error('timeout'));},4000);
+    s.src='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)
+      +'&q_enc=UTF-8&st=111&sug_typ=1&r_format=json&r_enc=UTF-8'
+      +'&r_lt='+(limit||20)+'&r_unicode=1&r_escape=1&callback='+id;
+    document.head.appendChild(s);
+  });
+}
+
+/* JSONP 결과 → items 배열 추출 */
+function acItems(data){return data&&(data.items||data.ac||[]);}
+
 async function yahooQuote(sym){
   const url='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?interval=1d&range=1d';
   for(const mkP of PROXIES){
@@ -898,49 +920,24 @@ const SEARCH_DB=[
   {n:'GOOGL',s:'GOOGL',dy:0,  df:'없음',    isDv:false,kr:0},
   {n:'META', s:'META',dy:0.4, df:'분기배당',isDv:true, kr:0},
 ];
-const DYN_KEY='krStockDB_v3';
+const DYN_KEY='krStockDB_v4';
 const DYN_TTL=24*3600*1000;
 let DYN_DB=[];
 
 async function initDynDB(){
-  // 캐시 확인
   try{
     const c=JSON.parse(localStorage.getItem(DYN_KEY)||'null');
     if(c&&Date.now()-c.ts<DYN_TTL&&c.data?.length>10){
-      DYN_DB=c.data;
-      setDbStatus('✅ ETF DB '+DYN_DB.length+'개',false);
-      return;
+      DYN_DB=c.data;setDbStatus('✅ ETF DB '+DYN_DB.length+'개',false);return;
     }
   }catch{}
-
   setDbStatus('⏳ ETF DB 로딩 중...',true);
 
-  const seen=new Set();
-  const result=[];
-
-  // Naver AC API (r_unicode=1 → JSON 내 한글을 \uXXXX로 반환 → 인코딩 문제 없음)
-  async function acFetch(q){
-    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)
-      +'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540'
-      +'&collapse=1&r_format=json&r_enc=UTF-8&r_lt=50&r_unicode=1&r_escape=1';
-    for(const mkP of PROXIES){
-      try{
-        const r=await fetch(mkP(url));
-        if(!r.ok)continue;
-        const text=await r.text();
-        const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
-        const j=JSON.parse(raw);
-        if(j&&j.items)return j.items;
-      }catch{}
-    }
-    return null;
-  }
-
-  function pushItems(items){
+  const seen=new Set(),result=[];
+  function pushAC(items){
     (items||[]).forEach((group,gi)=>{
       (group||[]).forEach(item=>{
         const name=item[0],code=item[1];
-        // 6자리 숫자 코드만 허용 (Z 등 문자 포함 코드 제외)
         if(!name||!code||!/^\d{6}$/.test(code)||seen.has(code))return;
         seen.add(code);
         const sym=code+(gi===0?'.KS':'.KQ');
@@ -951,28 +948,36 @@ async function initDynDB(){
     });
   }
 
-  // 국내 주요 ETF 브랜드별 검색
-  const queries=['KODEX','TIGER','ACE','RISE','HANARO','SOL','KBSTAR','ARIRANG','KOSEF','KTOP','TIMEFOLIO'];
-  for(const q of queries){
+  const brands=['KODEX','TIGER','ACE','RISE','HANARO','SOL','KBSTAR','ARIRANG','KOSEF','TIMEFOLIO'];
+  for(const q of brands){
     try{
-      const items=await acFetch(q);
-      if(items)pushItems(items);
-    }catch{}
+      // JSONP 우선 (프록시 불필요)
+      const data=await naverACJsonp(q,50);
+      pushAC(acItems(data));
+    }catch{
+      // JSONP 실패 → 프록시 fallback
+      try{
+        const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)
+          +'&q_enc=UTF-8&st=111&sug_typ=1&r_format=json&r_enc=UTF-8&r_lt=50&r_unicode=1&r_escape=1';
+        for(const mkP of PROXIES){
+          try{
+            const r=await fetch(mkP(url));if(!r.ok)continue;
+            const text=await r.text();
+            const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
+            const j=JSON.parse(raw);if(j?.items){pushAC(j.items);break;}
+          }catch{}
+        }
+      }catch{}
+    }
   }
 
-  // SEARCH_DB 병합 (배당 정보 보존)
+  // SEARCH_DB 병합
   SEARCH_DB.forEach(x=>{
-    const code=x.s.replace(/\.(KS|KQ)$/,'');
-    if(!seen.has(code)&&!/^\d{6}$/.test(code)===false){
-      // 미국 ETF나 개별주는 코드가 숫자 아님 → 그냥 추가
-    }
     if(!seen.has(x.s)){seen.add(x.s);result.push({n:x.n,s:x.s,dy:x.dy,df:x.df,isDv:x.isDv,market:x.kr?'국내':'미국'});}
   });
 
   DYN_DB=result;
-  if(result.length>5){
-    try{localStorage.setItem(DYN_KEY,JSON.stringify({ts:Date.now(),data:DYN_DB}));}catch{}
-  }
+  if(result.length>5){try{localStorage.setItem(DYN_KEY,JSON.stringify({ts:Date.now(),data:DYN_DB}));}catch{}}
   setDbStatus(DYN_DB.length>0?'✅ ETF DB '+DYN_DB.length+'개':'⚠️ 네트워크 실패',false);
 }
 
@@ -1019,54 +1024,46 @@ async function fetchNaverSearch(q,dd,localCount){
     const found=getAllDB().find(x=>x.s.replace(/\.(KS|KQ)$/,'')=== c);
     if(found){showDD(dd,[found],q);return;}
     showDD(dd,[{n:c,s:c+'.KS',dy:0,df:'없음',isDv:false,market:'국내주식',_isCode:true}],q);
-    try{
-      const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(c)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=20&r_unicode=1&r_escape=1';
-      for(const mkP of PROXIES){
-        try{
-          const r=await fetch(mkP(url));if(!r.ok)continue;
-          const text=await r.text();
-          const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
-          const j=JSON.parse(raw);
-          const hit=(j.items||[]).flat().find(x=>x[1]===c);
-          if(hit){
-            const div=guessEtfDiv(hit[0]);
-            showDD(dd,[{n:hit[0],s:c+'.KS',dy:div.dy,df:div.df,isDv:div.isDv,market:'국내주식'}],q);
-          }
-          break;
-        }catch{}
-      }
-    }catch{}
+    const cdata=await acSearch(c,11);
+    const hit=(acItems(cdata)||[]).flat().find(x=>x[1]===c);
+    if(hit){const div=guessEtfDiv(hit[0]);showDD(dd,[{n:hit[0],s:c+'.KS',dy:div.dy,df:div.df,isDv:div.isDv,market:'국내주식'}],q);}
     return;
   }
   if(localCount>=8)return;
-  try{
-    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)+'&q_enc=UTF-8&st=111&sug_typ=1&u_os=Android&u_ie=utf8&u_timezoneoffset=540&collapse=1&r_format=json&r_enc=UTF-8&r_lt=20&r_unicode=1&r_escape=1';
-    let j=null;
-    for(const mkP of PROXIES){
-      try{
-        const r=await fetch(mkP(url));if(!r.ok)continue;
-        const text=await r.text();
-        const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
-        j=JSON.parse(raw);if(j&&j.items)break;
-      }catch{}
-    }
-    if(!j||!j.items)return;
-    const acR=[];
-    (j.items||[]).forEach((group,gi)=>{
-      (group||[]).forEach(item=>{
-        const name=item[0],code=item[1];
-        if(!name||!code||!/^\d{6}$/.test(code))return; // 6자리 숫자만 허용
-        const sym=code+(gi===0?'.KS':'.KQ');
-        const db=getAllDB().find(x=>x.s===sym||x.n===name);
-        const div=db||guessEtfDiv(name);
-        acR.push({n:name,s:sym,dy:div.dy||0,df:div.df||'없음',isDv:div.isDv||false,market:gi===0?'KOSPI':'KOSDAQ'});
-      });
+  const data=await acSearch(q,20);
+  if(!data)return;
+  const acR=[];
+  acItems(data).forEach((group,gi)=>{
+    (group||[]).forEach(item=>{
+      const name=item[0],code=item[1];
+      if(!name||!code||!/^\d{6}$/.test(code))return;
+      const sym=code+(gi===0?'.KS':'.KQ');
+      const db=getAllDB().find(x=>x.s===sym||x.n===name);
+      const div=db||guessEtfDiv(name);
+      acR.push({n:name,s:sym,dy:div.dy||0,df:div.df||'없음',isDv:div.isDv||false,market:gi===0?'KOSPI':'KOSDAQ'});
     });
-    const seen=new Set();
-    const merged=[...getAllDB().filter(x=>x.n.includes(q)||x.s.toLowerCase().includes(q.toLowerCase())),...acR]
-      .filter(x=>{if(seen.has(x.s))return false;seen.add(x.s);return true;}).slice(0,12);
-    showDD(dd,merged,q);
-  }catch{}
+  });
+  const seen=new Set();
+  const ql=q.toLowerCase();
+  const merged=[...getAllDB().filter(x=>x.n.includes(q)||x.n.toLowerCase().includes(ql)),...acR]
+    .filter(x=>{if(seen.has(x.s))return false;seen.add(x.s);return true;}).slice(0,12);
+  if(merged.length)showDD(dd,merged,q);
+}
+
+async function acSearch(q,limit){
+  try{return await naverACJsonp(q,limit);}catch{}
+  const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)
+    +'&q_enc=UTF-8&st=111&sug_typ=1&r_format=json&r_enc=UTF-8'
+    +'&r_lt='+(limit||20)+'&r_unicode=1&r_escape=1';
+  for(const mkP of PROXIES){
+    try{
+      const r=await fetch(mkP(url));if(!r.ok)continue;
+      const text=await r.text();
+      const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
+      const j=JSON.parse(raw);if(j?.items)return j;
+    }catch{}
+  }
+  return null;
 }
 
 function showDD(dd,items,q){
