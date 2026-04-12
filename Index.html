@@ -21,6 +21,7 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 .rpnl-hdr{font-size:11px;margin-top:3px;padding:4px 8px;border-radius:6px;display:none;width:fit-content}
 .rpnl-hdr.pos{background:#f0fdf4;color:#16a34a}
 .rpnl-hdr.neg{background:#fef2f2;color:#dc2626}
+#menuDrop button:active{background:#f9f8f5}
 .rfbtn{width:100%;margin-top:10px;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer}
 .rfbtn.on{background:#2563eb;color:#fff}.rfbtn.off{background:#eff6ff;color:#2563eb}
 .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e3d8}
@@ -129,15 +130,36 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
   <button onclick="forceClose()" style="padding:9px 22px;border-radius:9px;border:1px solid #bfdbfe;background:#fff;color:#2563eb;font-size:13px;cursor:pointer;margin-top:4px">✕ 닫기</button>
 </div>
 
-<div class="hdr">
-  <div class="lbl">총 자산</div>
-  <div class="total" id="hTotal">0원</div>
-  <div class="pnl" id="hPnl"></div>
-  <div class="sub" id="hSub"></div>
-  <div id="hRpnl" class="rpnl-hdr"></div>
-  <div class="mdiv" id="hDiv"></div>
-  <div class="upd" id="hUpd"></div>
-  <button class="rfbtn on" id="rfBtn" onclick="refreshAll()">🔄 전체 가격 업데이트</button>
+<div class="hdr" style="position:sticky;top:0;z-index:40">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div style="flex:1">
+      <div class="lbl">총 자산</div>
+      <div class="total" id="hTotal">0원</div>
+      <div class="pnl" id="hPnl"></div>
+      <div class="sub" id="hSub"></div>
+      <div id="hRpnl" class="rpnl-hdr"></div>
+      <div class="mdiv" id="hDiv"></div>
+      <div class="upd" id="hUpd"></div>
+    </div>
+    <!-- 메뉴 버튼 -->
+    <div style="position:relative">
+      <button onclick="toggleMenu()" id="menuBtn" style="width:36px;height:36px;border-radius:50%;border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;flex-shrink:0;margin-top:4px;padding:0">
+        <span style="display:block;width:20px;height:2px;background:#1c1917;border-radius:2px;transition:all .2s"></span>
+        <span style="display:block;width:20px;height:2px;background:#1c1917;border-radius:2px;transition:all .2s"></span>
+        <span style="display:block;width:13px;height:2px;background:#1c1917;border-radius:2px;align-self:flex-start;transition:all .2s"></span>
+      </button>
+      <div id="menuDrop" style="display:none;position:absolute;right:0;top:44px;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.12);border:1px solid #f0ede8;min-width:160px;z-index:200;overflow:hidden;padding:6px">
+        <button onclick="exportData();toggleMenu()" style="width:100%;padding:11px 14px;border:none;background:none;text-align:left;font-size:14px;color:#1c1917;cursor:pointer;border-radius:10px;display:flex;align-items:center;gap:10px;font-weight:500">
+          <span style="font-size:16px">📤</span>내보내기
+        </button>
+        <button onclick="document.getElementById('importFile').click();toggleMenu()" style="width:100%;padding:11px 14px;border:none;background:none;text-align:left;font-size:14px;color:#1c1917;cursor:pointer;border-radius:10px;display:flex;align-items:center;gap:10px;font-weight:500">
+          <span style="font-size:16px">📥</span>불러오기
+        </button>
+      </div>
+    </div>
+  </div>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+  <button class="rfbtn on" id="rfBtn" onclick="refreshAll()" style="margin-top:10px">🔄 전체 가격 업데이트</button>
 </div>
 
 <div class="tabs">
@@ -148,11 +170,6 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 </div>
 
 <div class="pane" id="pList">
-  <div class="io-row">
-    <button class="io-btn" onclick="exportData()">📤 내보내기</button>
-    <button class="io-btn" onclick="document.getElementById('importFile').click()">📥 불러오기</button>
-    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-  </div>
   <div id="frow" style="display:none;margin-bottom:8px">
     <div style="display:flex;background:#f3f2ef;border-radius:12px;padding:4px;gap:2px;width:100%">
       <button class="fp on" id="fAll" onclick="setFlt('all')">전체</button>
@@ -1134,6 +1151,16 @@ function renderHist(){
 }
 
 /* ===== TABS / FILTERS ===== */
+function toggleMenu(){
+  const d=document.getElementById('menuDrop');
+  d.style.display=d.style.display==='none'?'block':'none';
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#menuBtn')&&!e.target.closest('#menuDrop')){
+    const d=document.getElementById('menuDrop');
+    if(d)d.style.display='none';
+  }
+});
 function goTab(t){
   TAB=t;
   ['List','Sim','Chart','Hist'].forEach(k=>{const tk=k.toLowerCase();document.getElementById('p'+k).style.display=tk===t?'':'none';document.getElementById('t'+k).className='tab'+(tk===t?' on':'');});
