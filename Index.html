@@ -628,7 +628,7 @@ const SEARCH_DB=[
   {n:'KODEX 유럽선진국MSCI(H)',s:'195930.KS',dy:1.5,df:'연배당',isDv:true},
   {n:'KODEX 인도Nifty50',s:'453810.KS',dy:0,df:'없음',isDv:false},
   {n:'KODEX 베트남VN30(합성)',s:'245710.KS',dy:0,df:'없음',isDv:false},
-  {n:'KODEX 미국성장커버드콜액티브',s:'464600.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'KODEX 미국성장커버드콜액티브',s:'A0144L0.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'KODEX 미국나스닥커버드콜액티브',s:'464610.KS',dy:10.0,df:'월배당',isDv:true},
   // ── TIGER (미래에셋자산운용) ──
   {n:'TIGER 200',s:'102110.KS',dy:1.5,df:'분기배당',isDv:true},
@@ -1447,19 +1447,29 @@ function naverACJsonp(q,limit){
 function acItems(data){return data&&(data.items||data.ac||[]);}
 
 async function yahooQuote(sym){
-  const url='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?interval=1d&range=1d';
-  for(const mkP of PROXIES){
-    try{
-      const r=await fetch(mkP(url));if(!r.ok)continue;
-      const text=await r.text();
-      const j=JSON.parse(text.startsWith('{"contents"')?JSON.parse(text).contents:text);
-      const meta=j?.chart?.result?.[0]?.meta;
-      const p=meta?.regularMarketPrice;
-      if(p&&p>0){
-        const name=meta?.longName||meta?.shortName||null;
-        return{price:p,name};
-      }
-    }catch{}
+  // 시도할 심볼 목록 (신규 알파벳 코드 대응)
+  const syms=[sym];
+  // KS/KQ 종목인데 코드에 숫자만 있으면 A 접두사 버전도 시도
+  if((sym.endsWith('.KS')||sym.endsWith('.KQ'))&&!/^A/i.test(sym.split('.')[0])){
+    const code=sym.split('.')[0];
+    const ext=sym.split('.')[1];
+    syms.push('A'+code+'.'+ext);
+  }
+  for(const s of syms){
+    const url='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(s)+'?interval=1d&range=1d';
+    for(const mkP of PROXIES){
+      try{
+        const r=await fetch(mkP(url));if(!r.ok)continue;
+        const text=await r.text();
+        const j=JSON.parse(text.startsWith('{"contents"')?JSON.parse(text).contents:text);
+        const meta=j?.chart?.result?.[0]?.meta;
+        const p=meta?.regularMarketPrice;
+        if(p&&p>0){
+          const name=meta?.longName||meta?.shortName||null;
+          return{price:p,name,resolvedSym:s};
+        }
+      }catch{}
+    }
   }
   throw new Error('조회실패');
 }
@@ -1474,11 +1484,20 @@ async function fetchOne(id){
   const h=D.h.find(x=>x.id===id);if(!h)return;
   LDS.add(id);render();
   try{
-    const sym=h.sym||toSym(h.n);let p,resolvedName=null;
+    let sym=h.sym||toSym(h.n);let p,resolvedName=null;
     if(isKR(sym)){
-      const res=await yahooQuote(sym);
-      p=Math.round(res.price);
-      // 종목명이 6자리 코드일 때 → 네이버 AC에서 한국어 이름 조회
+      let res=null;
+      try{res=await yahooQuote(sym);p=Math.round(res.price);if(res.resolvedSym&&res.resolvedSym!==sym)sym=res.resolvedSym;}catch{}
+      // 시세 실패 시 → Yahoo 검색으로 올바른 심볼 자동 찾기
+      if(!p){
+        const found=await findKRSymbol(h.n);
+        if(found){
+          sym=found;
+          const res2=await yahooQuote(sym);
+          p=Math.round(res2.price);
+          if(res2.resolvedSym&&res2.resolvedSym!==sym)sym=res2.resolvedSym;
+        }
+      }
       if(/^\d{6}$/.test(h.n)){
         const code=sym.replace(/\.(KS|KQ)$/,'');
         resolvedName=await resolveKoreanName(code)||h.n;
@@ -1486,6 +1505,7 @@ async function fetchOne(id){
     }else{
       p=Math.round((await fhQuote(sym))*D.rate);
     }
+    if(!p||isNaN(p))throw new Error('가격 없음');
     D.h=D.h.map(x=>{
       if(x.id!==id)return x;
       return{...x,cur:p,sym,err:0,...(resolvedName?{n:resolvedName}:{})};
@@ -1493,6 +1513,24 @@ async function fetchOne(id){
     D.at=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});save();
   }catch{D.h=D.h.map(x=>x.id===id?{...x,err:1}:x);}
   LDS.delete(id);render();
+}
+
+// 종목명으로 Yahoo Finance에서 올바른 심볼 찾기
+async function findKRSymbol(name){
+  try{
+    const url='https://query1.finance.yahoo.com/v1/finance/search?q='+encodeURIComponent(name)+'&lang=ko&region=KR&quotesCount=5&newsCount=0';
+    for(const mkP of [u=>u,...PROXIES]){
+      try{
+        const r=await fetch(mkP(url));if(!r.ok)continue;
+        const text=await r.text();
+        const j=JSON.parse(text.startsWith('{"contents"')?JSON.parse(text).contents:text);
+        const quotes=j?.finance?.result?.[0]?.quotes||j?.quotes||[];
+        const hit=quotes.find(q=>(q.symbol||'').endsWith('.KS')||(q.symbol||'').endsWith('.KQ'));
+        if(hit){return hit.symbol;}
+      }catch{}
+    }
+  }catch{}
+  return null;
 }
 
 async function resolveKoreanName(code){
@@ -2794,10 +2832,21 @@ document.addEventListener('click',e=>{if(!e.target.closest('#searchDD')&&e.targe
 (function syncDivInfo(){
   let changed=false;
   D.h.forEach(h=>{
-    const db=SEARCH_DB.find(x=>x.s===h.sym||x.n===h.n);
-    if(db&&(h.dy!==db.dy||h.df!==db.df||h.isDv!==db.isDv)){
-      h.dy=db.dy; h.df=db.df; h.isDv=db.isDv;
-      changed=true;
+    if(h.isDv&&h.dy>0&&h.df&&h.df!=='없음')return; // 이미 배당 정보 있으면 스킵
+    // 1) SEARCH_DB 정확 매칭
+    const db=SEARCH_DB.find(x=>(x.s&&x.s===h.sym)||(x.n&&x.n===h.n));
+    if(db&&db.isDv){
+      h.dy=db.dy; h.df=db.df; h.isDv=db.isDv; changed=true; return;
+    }
+    // 2) 이름 포함 매칭
+    const db2=SEARCH_DB.find(x=>x.isDv&&x.n&&h.n&&(h.n.includes(x.n)||x.n.includes(h.n)));
+    if(db2&&db2.isDv){
+      h.dy=db2.dy; h.df=db2.df; h.isDv=db2.isDv; changed=true; return;
+    }
+    // 3) guessEtfDiv로 이름 패턴 추정
+    const g=guessEtfDiv(h.n);
+    if(g.isDv){
+      h.dy=g.dy; h.df=g.df; h.isDv=g.isDv; changed=true;
     }
   });
   if(changed)save();
