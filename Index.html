@@ -2911,37 +2911,54 @@ function parseSsText(text){
     return'general'; // 모르면 일반
   }
 
-  // 상단 종목명 추출
-  let topName='';
+  // 상단 종목명/티커 추출
+  let topName='', topTicker='';
   for(let i=0;i<Math.min(lines.length,10);i++){
+    // 미국 ETF/주식 티커 (영문 대문자 2~5자)
+    const tkM=lines[i].match(/^([A-Z]{2,5})\s+\$[\d.]+/);
+    if(tkM){topTicker=tkM[1]; if(!topName)topName=topTicker; break;}
     if(/^(RISE|KODEX|TIGER|ACE|SOL|HANARO|TIMEFOLIO|KBSTAR|ARIRANG|PLUS)\s/.test(lines[i])){
       topName=lines[i].replace(/\s*\d{6}.*$/,'').trim(); break;
     }
+    // "JPMorgan ..." 같은 영문 전체 이름 → 다음 줄 티커 찾기
     const cm=lines[i].match(/^(.+?)\s+\d{6}/);
     if(cm){topName=cm[1].trim(); break;}
   }
+  // 티커가 있으면 DB에서 종목명 찾기
+  if(topTicker){
+    const db=getAllDB().find(x=>x.s===topTicker||x.n===topTicker);
+    if(db)topName=db.n;
+    else topName=topTicker;
+  }
 
-  // 줄 단위 파싱: "N주 · M원" 줄 찾으면 바로 위 줄이 계좌명
-  const pNum=/([\d,]+)\s*주\s*[·・·\-\.•]\s*([\d,]+)\s*원/;
+  // 줄 단위 파싱: "N주 · M원" 또는 "N주 · $M.MM" 패턴
+  const pNum=/([\d,]+)\s*주\s*[·・·\-\.•]\s*(\$?[\d,]+\.?\d*)\s*원?/;
   for(let i=0;i<lines.length;i++){
     const m=lines[i].match(pNum);
     if(!m)continue;
-    const qty=N(m[1]), price=N(m[2]);
-    if(qty<=0||qty>9999999||price<=0||price>9999999)continue;
+    const qty=N(m[1]);
+    const isUSD=m[2].startsWith('$');
+    const rawPrice=parseFloat(m[2].replace('$','').replace(/,/g,''));
+    if(!rawPrice||qty<=0||qty>9999999)continue;
+    // 달러면 원화 변환
+    const price=isUSD?Math.round(rawPrice*(D.rate||1380)):Math.round(rawPrice);
+    if(price<=0)continue;
 
-    // 계좌명: 같은 줄 앞부분 → 없으면 바로 위 줄
     const before=lines[i].slice(0,lines[i].indexOf(m[0])).trim();
     const prevLine=i>0?lines[i-1].trim():'';
     const acctSrc=before||prevLine;
     const acct=acctOf(acctSrc);
+
+    // 0주는 스킵
+    if(qty===0)continue;
 
     const k=qty+'|'+price;
     if(seen.has(k))continue;
     seen.add(k);
 
     const name=topName||acctSrc||'종목';
-    const db=getAllDB().find(x=>topName&&(x.n===topName||(topName.length>4&&x.n.includes(topName))||(x.n.length>4&&topName.includes(x.n))));
-    results.push({name:db?db.n:name.slice(0,30),qty,avgPrice:price,acct,db});
+    const db=getAllDB().find(x=>topTicker?(x.s===topTicker||x.n===topTicker):(topName&&(x.n===topName||(topName.length>4&&x.n.includes(topName)))));
+    results.push({name:db?db.n:name.slice(0,30),qty,avgPrice:price,acct,db,isUSD,rawUsdPrice:isUSD?rawPrice:null});
   }
 
   // 보유량+평단가 형식 (결과 없을 때만)
@@ -2969,7 +2986,7 @@ function renderSsParsed(rawBox){
         <div><span style="font-size:13px;font-weight:700">${x.name}</span>${chip}</div>
         <span style="font-size:10px;padding:2px 7px;border-radius:5px;${x.acct==='tax'?'background:#f0fdf4;color:#16a34a':'background:#f3f4f6;color:#888'}">${x.acct==='tax'?'절세':'일반'}</span>
       </div>
-      <div style="font-size:11px;color:#aaa;margin-top:2px">${fN(x.qty)}주 · 평단 ${fN(x.avgPrice)}원${dbMatch?' · '+dbMatch.df:''}</div>
+      <div style="font-size:11px;color:#aaa;margin-top:2px">${fN(x.qty)}주 · 평단 ${x.isUSD?'$'+x.rawUsdPrice.toFixed(2)+' ('+fN(x.avgPrice)+'원)':fN(x.avgPrice)+'원'}${dbMatch?' · '+dbMatch.df:''}</div>
     </div>`;
   }).join('');
   document.getElementById('ssResult').innerHTML=`
