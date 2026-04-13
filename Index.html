@@ -200,7 +200,11 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
     <div style="font-size:14px;color:#555">아래 버튼으로 종목을 추가하세요</div>
     <div style="font-size:12px;color:#d97706;margin-top:6px">Finnhub 실시간 가격 자동 조회</div>
   </div>
-  <div id="botUpd" style="text-align:center;font-size:11px;color:#ccc;padding:16px 0 8px"></div>
+  <div id="botUpd" style="text-align:center;font-size:11px;color:#ccc;padding:16px 0 4px"></div>
+  <div style="text-align:center;padding:4px 16px 24px;line-height:1.6">
+    <div style="font-size:11px;color:#bbb;font-weight:500">Crafted by Jose Fernando Aramco © 2026</div>
+    <div style="font-size:10px;color:#d0cfc9">Unauthorized use, reproduction, or distribution is strictly prohibited.</div>
+  </div>
 
 </div>
 
@@ -3355,8 +3359,19 @@ document.addEventListener('drop',function(e){
   save();render();
 });
 
-// 터치 드래그 (모바일)
-let _touchY=0, _touchTimer=null;
+// 터치 드래그 (모바일 - iOS Safari 완전 지원)
+let _touchY=0, _touchTimer=null, _touchStartY=0, _touchLastTargetId=null;
+const TOUCH_PUSH=38;
+
+function _touchCleanup(){
+  document.querySelectorAll('#hList [data-id]').forEach(el=>{
+    el.classList.remove('drag-dragging','drag-over-top','drag-over-bot');
+    el.style.transform='';
+    el.style.transition='';
+  });
+  _touchDragId=null;_touchDragEl=null;_touchLastTargetId=null;
+}
+
 document.addEventListener('touchstart',function(e){
   if(SORT!=='custom')return;
   const handle=e.target.closest('.drag-handle');
@@ -3365,53 +3380,98 @@ document.addEventListener('touchstart',function(e){
   if(!item)return;
   _touchDragId=parseInt(item.dataset.id);
   _touchDragEl=item;
-  _touchY=e.touches[0].clientY;
+  _touchStartY=_touchY=e.touches[0].clientY;
   _touchTimer=setTimeout(()=>{
-    item.style.opacity='0.5';
-    item.style.transform='scale(1.02)';
-  },200);
+    if(_touchDragEl)_touchDragEl.classList.add('drag-dragging');
+  },100);
 },{passive:true});
+
 document.addEventListener('touchmove',function(e){
   if(!_touchDragId||SORT!=='custom')return;
-  const dy=e.touches[0].clientY-_touchY;
-  if(_touchDragEl)_touchDragEl.style.transform=`translateY(${dy}px) scale(1.02)`;
-  // 아래/위 아이템 감지
-  const els=document.querySelectorAll('#hList [data-id]');
   const cy=e.touches[0].clientY;
-  els.forEach(el=>{
+  const dy=cy-_touchStartY;
+
+  // 드래그 중인 아이템 따라오기
+  if(_touchDragEl){
+    _touchDragEl.style.transition='none';
+    _touchDragEl.style.transform=`translateY(${dy}px) scale(1.03)`;
+    _touchDragEl.style.boxShadow='0 8px 24px rgba(0,0,0,.18)';
+    _touchDragEl.style.zIndex='99';
+  }
+
+  // 어느 아이템 위에 있는지 감지
+  const allItems=Array.from(document.querySelectorAll('#hList [data-id]'));
+  const srcIdx=allItems.findIndex(el=>parseInt(el.dataset.id)===_touchDragId);
+  let targetId=null, insertBefore=true;
+
+  allItems.forEach(el=>{
     if(parseInt(el.dataset.id)===_touchDragId)return;
     const rect=el.getBoundingClientRect();
-    if(cy>rect.top&&cy<rect.bottom){
-      el.style.background='#eff6ff';
+    if(cy>=rect.top&&cy<=rect.bottom){
+      targetId=parseInt(el.dataset.id);
+      insertBefore=cy<rect.top+rect.height/2;
+    }
+  });
+
+  if(targetId===_touchLastTargetId)return;
+  _touchLastTargetId=targetId;
+
+  // 다른 아이템들 밀기 애니메이션
+  allItems.forEach((el,i)=>{
+    if(parseInt(el.dataset.id)===_touchDragId)return;
+    el.classList.remove('drag-over-top','drag-over-bot');
+    el.style.transition='transform .18s cubic-bezier(.4,0,.2,1)';
+    if(!targetId){el.style.transform='';return;}
+    const tgtIdx=allItems.findIndex(x=>parseInt(x.dataset.id)===targetId);
+    const insertIdx=insertBefore?tgtIdx:tgtIdx+1;
+    if(srcIdx<insertIdx){
+      el.style.transform=(i>srcIdx&&i<insertIdx)?`translateY(-${TOUCH_PUSH}px)`:'';
     }else{
-      el.style.background='';
+      el.style.transform=(i>=insertIdx&&i<srcIdx)?`translateY(${TOUCH_PUSH}px)`:'';
+    }
+    if(parseInt(el.dataset.id)===targetId){
+      el.classList.add(insertBefore?'drag-over-top':'drag-over-bot');
     }
   });
 },{passive:true});
+
 document.addEventListener('touchend',function(e){
   if(!_touchDragId||SORT!=='custom')return;
   clearTimeout(_touchTimer);
-  if(_touchDragEl){_touchDragEl.style.opacity='';_touchDragEl.style.transform='';}
-  // 드롭 위치 찾기
+
+  // 드래그 아이템 원위치 스타일 초기화
+  if(_touchDragEl){
+    _touchDragEl.style.transform='';
+    _touchDragEl.style.boxShadow='';
+    _touchDragEl.style.zIndex='';
+    _touchDragEl.style.transition='';
+  }
+
   const cy=e.changedTouches[0].clientY;
-  const els=document.querySelectorAll('#hList [data-id]');
-  let targetId=null;
-  els.forEach(el=>{
-    el.style.background='';
+  const allItems=Array.from(document.querySelectorAll('#hList [data-id]'));
+  let targetId=null, insertBefore=true;
+  allItems.forEach(el=>{
+    if(parseInt(el.dataset.id)===_touchDragId)return;
     const rect=el.getBoundingClientRect();
-    if(cy>rect.top&&cy<rect.bottom)targetId=parseInt(el.dataset.id);
+    if(cy>=rect.top&&cy<=rect.bottom){
+      targetId=parseInt(el.dataset.id);
+      insertBefore=cy<rect.top+rect.height/2;
+    }
   });
+
   if(targetId&&targetId!==_touchDragId){
     const fromIdx=D.h.findIndex(x=>x.id===_touchDragId);
-    const toIdx=D.h.findIndex(x=>x.id===targetId);
+    let toIdx=D.h.findIndex(x=>x.id===targetId);
     if(fromIdx!==-1&&toIdx!==-1){
       const moved=D.h.splice(fromIdx,1)[0];
-      D.h.splice(toIdx,0,moved);
+      toIdx=D.h.findIndex(x=>x.id===targetId);
+      D.h.splice(insertBefore?toIdx:toIdx+1,0,moved);
       D.customOrder=D.h.map(x=>x.id);
-      save();render();
+      save();
     }
   }
-  _touchDragId=null;_touchDragEl=null;
+  _touchCleanup();
+  render();
 });
 
 let SORT_DIR={val:'desc',pnl:'desc'}; // 각 정렬의 현재 방향
