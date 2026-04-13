@@ -1763,6 +1763,8 @@ const SEARCH_DB=[
   {n:'LMT',s:'LMT',dy:2.8,df:'분기배당',isDv:true},
   // ── 미국 리츠 ──
   {n:'O',s:'O',dy:5.5,df:'월배당',isDv:true},
+  {n:'Realty Income',s:'O',dy:5.5,df:'월배당',isDv:true},
+  {n:'Realty Income Corporation',s:'O',dy:5.5,df:'월배당',isDv:true},
   {n:'MAIN',s:'MAIN',dy:6.5,df:'월배당',isDv:true},
   {n:'STAG',s:'STAG',dy:4.5,df:'월배당',isDv:true},
   {n:'AGNC',s:'AGNC',dy:14.0,df:'월배당',isDv:true},
@@ -2449,24 +2451,36 @@ async function fetchOne(id){
 // 네이버 시세 직접 조회 (국내주식 최종 fallback)
 // 네이버 실시간 시세 JSONP (프록시 없이 직접 호출)
 function naverPriceJsonp(code){
+  const endpoints=[
+    c=>`https://polling.finance.naver.com/api/realtime/domestic/stock/${c}`,
+    c=>`https://m.stock.naver.com/front-api/v1/stock/price?category=stock&stockCode=${c}`,
+  ];
   return new Promise(res=>{
     const c=code.replace(/^A/i,'').replace(/\.(KS|KQ)$/,'').padStart(6,'0');
-    const id='_np_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
-    const s=document.createElement('script');
-    let done=false;
-    function cleanup(){try{s.parentNode&&s.parentNode.removeChild(s);}catch{}delete window[id];}
-    window[id]=function(data){
-      if(done)return;done=true;cleanup();
-      try{
-        const r=data?.result||data?.data||data||{};
-        const p=Number(String(r?.tradePrice||r?.closePrice||r?.price||r?.현재가||0).replace(/,/g,''));
-        res(p>100?Math.round(p):null);
-      }catch{res(null);}
-    };
-    s.onerror=()=>{if(!done){done=true;cleanup();res(null);}};
-    setTimeout(()=>{if(!done){done=true;cleanup();res(null);}},5000);
-    s.src=`https://polling.finance.naver.com/api/realtime/domestic/stock/${c}?callback=${id}&_=${Date.now()}`;
-    document.head.appendChild(s);
+    let tried=0;
+    function tryNext(){
+      if(tried>=endpoints.length){res(null);return;}
+      const baseUrl=endpoints[tried++](c);
+      const id='_np_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+      const s=document.createElement('script');
+      let done=false;
+      function cleanup(){try{s.parentNode&&s.parentNode.removeChild(s);}catch{}delete window[id];}
+      window[id]=function(data){
+        if(done)return;done=true;cleanup();
+        try{
+          const r=data?.result||data?.data||data||{};
+          const raw=r?.tradePrice||r?.closePrice||r?.price||r?.현재가||
+                    data?.tradePrice||data?.closePrice||data?.price||0;
+          const p=Number(String(raw).replace(/,/g,''));
+          if(p>100){res(Math.round(p));}else{tryNext();}
+        }catch{tryNext();}
+      };
+      s.onerror=()=>{if(!done){done=true;cleanup();tryNext();}};
+      setTimeout(()=>{if(!done){done=true;cleanup();tryNext();}},4000);
+      s.src=`${baseUrl}?callback=${id}&_=${Date.now()}`;
+      document.head.appendChild(s);
+    }
+    tryNext();
   });
 }
 
@@ -2701,11 +2715,8 @@ async function fetchDivs(id){
   LDS.add(id);render();
   try{
     const sym=h.sym||toSym(h.n);
-    let divs=await fhDivs(sym);
-    // Yahoo 데이터 없으면 배당률 기반 추정
-    if(!divs.length&&h.isDv&&h.dy>0){
-      divs=estimateDivHistory(h);
-    }
+    const divs=await fhDivs(sym);
+    // 실제 데이터만 저장 — 추정값 생성 안 함
     D.h=D.h.map(x=>x.id===id?{...x,divHistory:divs,divErr:0}:x);save();
   }catch{D.h=D.h.map(x=>x.id===id?{...x,divHistory:[],divErr:1}:x);}
   LDS.delete(id);render();
@@ -2722,9 +2733,10 @@ function renderDivHistory(h,id){
     </div>`;
   }
   if(!h.divHistory.length){
-    return`<div style="background:#f9f8f5;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#aaa;text-align:center">
-      배당 데이터를 찾을 수 없습니다<br>
-      <button onclick="fetchDivs(${id})" style="margin-top:6px;font-size:11px;color:#2563eb;border:none;background:none;cursor:pointer;padding:0">🔄 재조회</button>
+    return`<div style="background:#f9f8f5;border-radius:10px;padding:12px;margin-bottom:12px;text-align:center">
+      <div style="font-size:13px;color:#aaa;margin-bottom:6px">📭 배당 지급 이력이 없습니다</div>
+      <div style="font-size:11px;color:#ccc;margin-bottom:8px">최근 6개월 내 배당 데이터를 찾을 수 없어요</div>
+      <button onclick="fetchDivs(${id})" style="font-size:11px;color:#2563eb;border:none;background:none;cursor:pointer;padding:0">🔄 재조회</button>
     </div>`;
   }
   const isUS=!(isKR(h.sym||'')||isKRName(h.n||''));
