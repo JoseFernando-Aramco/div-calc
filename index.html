@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;color:#1c1917;max-width:480px;margin:0 auto;min-height:100vh}
+body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;color:#1c1917;max-width:480px;margin:0 auto;min-height:100vh;scrollbar-gutter:stable}
 .hdr{background:#fff;padding:20px 18px 14px;border-bottom:1px solid #e8e3d8;position:sticky;top:0;z-index:40}
 .lbl{font-size:11px;color:#aaa;letter-spacing:.5px;margin-bottom:2px}
 .total{font-size:30px;font-weight:700;letter-spacing:-.5px}
@@ -4554,6 +4554,24 @@ document.addEventListener('mousedown',e=>{
 render();
 initDynDB();
 fetchRate();
+
+// 보유 종목 중 심볼 없는 것들 백그라운드에서 자동 탐색 (최초 1회)
+(async function prefetchSymbols(){
+  const missing=D.h.filter(h=>!h.sym&&h.n&&isKRName(h.n));
+  if(!missing.length)return;
+  let changed=false;
+  for(const h of missing){
+    try{
+      const sym=await findKRSymbol(h.n);
+      if(sym){
+        D.h=D.h.map(x=>x.id===h.id?{...x,sym}:x);
+        changed=true;
+      }
+    }catch{}
+    await new Promise(r=>setTimeout(r,200)); // 요청 간격
+  }
+  if(changed){save();}
+})();
 </script>
 <script>
 /* ===== SCREENSHOT OCR (OCR.space 무료 API) ===== */
