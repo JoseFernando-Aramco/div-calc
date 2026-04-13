@@ -32,9 +32,9 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 .fp.on{background:#fff;color:#1c1917;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.10)}
 .sp{padding:10px 0;background:transparent;font-size:12px;color:#999;cursor:pointer;font-weight:500;transition:all .15s;white-space:nowrap}
 .drag-item{transition:transform .2s ease,box-shadow .2s ease}
-.drag-over-top{border-top:2.5px solid #2563eb !important}
-.drag-over-bot{border-bottom:2.5px solid #2563eb !important}
-.drag-dragging{opacity:.5;transform:scale(.98)}
+.drag-over-top{box-shadow:0 -3px 0 0 #2563eb !important}
+.drag-over-bot{box-shadow:0 3px 0 0 #2563eb !important}
+.drag-dragging{opacity:.4}
 .sp.on{background:#fff;color:#1c1917;font-weight:700;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.10)}
 /* 종목 행 (증권앱 스타일) */
 .srow{display:flex;align-items:center;padding:14px 0;border-bottom:1px solid #f3f3f1;cursor:pointer;gap:12px}
@@ -3308,22 +3308,13 @@ function _clearDragStyles(){
 }
 
 function _applyShift(srcIdx, tid, isTop){
-  const all=_getAllDragItems();
-  const tgtIdx=all.findIndex(el=>Number(el.dataset.id)===tid);
-  const insertIdx=isTop?tgtIdx:tgtIdx+1;
-  const PUSH=62;
   const key=tid+'_'+(isTop?'t':'b');
   if(_dragOverKey===key)return;
   _dragOverKey=key;
-  all.forEach((el,i)=>{
+  const all=_getAllDragItems();
+  all.forEach(el=>{
     el.classList.remove('drag-over-top','drag-over-bot');
-    el.style.transition='transform .18s cubic-bezier(.4,0,.2,1)';
-    if(Number(el.dataset.id)===_dragId){el.style.transform='';return;}
-    if(srcIdx<insertIdx){
-      el.style.transform=(i>srcIdx&&i<insertIdx)?`translateY(-${PUSH}px)`:'';
-    }else{
-      el.style.transform=(i>=insertIdx&&i<srcIdx)?`translateY(${PUSH}px)`:'';
-    }
+    el.style.transform='';
     if(Number(el.dataset.id)===tid) el.classList.add(isTop?'drag-over-top':'drag-over-bot');
   });
 }
@@ -3395,10 +3386,7 @@ function _bindDragHandles(){
             if(lastTid!==null){
               lastTid=null; lastIsTop=null; _dragOverKey=null;
               all.forEach(el=>{
-                if(Number(el.dataset.id)===_dragId)return;
                 el.classList.remove('drag-over-top','drag-over-bot');
-                el.style.transition='transform .2s cubic-bezier(.4,0,.2,1)';
-                el.style.transform='';
               });
             }
             return;
