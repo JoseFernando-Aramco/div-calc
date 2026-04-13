@@ -3546,7 +3546,12 @@ function delH(id){
 }
 function updateAvgCurrency(name){
   const sym=toSym(name);
-  const isUS=name&&!isKR(sym)&&/^[A-Za-z]/.test(name.trim());
+  // DB에서 심볼 확인 → .KS/.KQ면 국내
+  const dbEntry=getAllDB().find(x=>x.n===name||(x.s&&x.s===sym));
+  const dbSym=dbEntry?dbEntry.s:'';
+  const isUS=dbSym
+    ? !isKR(dbSym)&&!/\.(KS|KQ)$/.test(dbSym)  // DB에 심볼 있으면 그 기준
+    : name&&!isKR(sym)&&/^[A-Za-z]/.test(name.trim())&&!/^(KODEX|TIGER|RISE|ACE|SOL|HANARO|KBSTAR|ARIRANG|TIMEFOLIO|PLUS|KIWOOM|WON|FOCUS|1Q|HK|마이다스|마이티|파워)/.test(name.trim());
   const suf=document.getElementById('aAvgSuf');
   const lbl=document.getElementById('aAvgCurLabel');
   const inp=document.getElementById('aAvg');
