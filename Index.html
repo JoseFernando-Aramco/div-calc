@@ -186,6 +186,7 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
       <button class="fp" id="fTax" onclick="setFlt('tax')">절세</button>
     </div>
   </div>
+  <div id="filterBanner" style="display:none;margin-bottom:8px"></div>
   <div id="sortRow" style="display:none;margin-bottom:12px">
     <div style="display:flex;gap:0;background:#f3f2ef;border-radius:12px;padding:4px;width:100%">
       <button class="sp on" id="sDefault" onclick="setSort('default')" style="flex:1;border-radius:8px;border:none;text-align:center">기본</button>
@@ -2724,24 +2725,30 @@ function render(){
   const mAll=calcMonDiv('all');
   const mGen=calcMonDiv('general');
   const mTax=calcMonDiv('tax');
+
+  // 계좌별 종목 수 계산
+  const cntAll=H.length;
+  const cntGen=H.filter(h=>{const b=h.buys||[];return b.length?b.some(x=>x.acct!=='tax'):h.acct!=='tax';}).length;
+  const cntTax=H.filter(h=>{const b=h.buys||[];return b.length?b.some(x=>x.acct==='tax'):h.acct==='tax';}).length;
+
   const de=document.getElementById('hDiv');
-  if(mAll>0){
+  if(mAll>0||H.length>0){
     de.style.display='block';
     const selAll=FLT==='all', selNorm=FLT==='normal', selTax=FLT==='tax';
     de.innerHTML=`
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;width:100%">
   <div onclick="setFlt('all')" style="background:linear-gradient(145deg,#1e40af,#3b82f6);border-radius:16px;padding:14px 12px;cursor:pointer;box-shadow:${selAll?'0 0 0 3px #fff,0 0 0 5px #2563eb':'0 4px 14px rgba(37,99,235,.3)'};transition:box-shadow .2s">
-    <div style="font-size:10px;color:rgba(255,255,255,.75);font-weight:600;margin-bottom:8px">🪙 전체</div>
+    <div style="font-size:10px;color:rgba(255,255,255,.75);font-weight:600;margin-bottom:8px">🪙 전체 <span style="opacity:.7">${cntAll}종목</span></div>
     <div style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-.5px;line-height:1.1">${fmt(Math.round(mAll))}</div>
     <div style="font-size:10px;color:rgba(255,255,255,.55);margin-top:5px">연 ${fmt(Math.round(mAll*12))}</div>
   </div>
   <div onclick="setFlt('normal')" style="background:#fff;border:${selNorm?'2.5px solid #2563eb':'1.5px solid #e8e3d8'};border-radius:16px;padding:14px 12px;cursor:pointer;box-shadow:${selNorm?'0 4px 14px rgba(37,99,235,.15)':'none'};transition:all .2s">
-    <div style="font-size:10px;color:${selNorm?'#2563eb':'#aaa'};font-weight:600;margin-bottom:8px">📂 일반</div>
+    <div style="font-size:10px;color:${selNorm?'#2563eb':'#aaa'};font-weight:600;margin-bottom:8px">📂 일반 <span style="opacity:.7">${cntGen}종목</span></div>
     <div style="font-size:18px;font-weight:800;color:#1c1917;letter-spacing:-.5px;line-height:1.1">${fmt(Math.round(mGen))}</div>
     <div style="font-size:10px;color:#bbb;margin-top:5px">${mAll>0?Math.round(mGen/mAll*100):0}%</div>
   </div>
   <div onclick="setFlt('tax')" style="background:linear-gradient(145deg,#f0fdf4,#dcfce7);border:${selTax?'2.5px solid #16a34a':'1.5px solid #bbf7d0'};border-radius:16px;padding:14px 12px;cursor:pointer;box-shadow:${selTax?'0 4px 14px rgba(22,163,74,.2)':'none'};transition:all .2s">
-    <div style="font-size:10px;color:#16a34a;font-weight:600;margin-bottom:8px">🌿 절세</div>
+    <div style="font-size:10px;color:#16a34a;font-weight:600;margin-bottom:8px">🌿 절세 <span style="opacity:.7">${cntTax}종목</span></div>
     <div style="font-size:18px;font-weight:800;color:#15803d;letter-spacing:-.5px;line-height:1.1">${fmt(Math.round(mTax))}</div>
     <div style="font-size:10px;color:#86efac;margin-top:5px">${mAll>0?Math.round(mTax/mAll*100):0}%</div>
   </div>
@@ -2756,6 +2763,23 @@ function render(){
   document.getElementById('frow').style.display=H.length?'flex':'none';
   document.getElementById('sortRow').style.display=H.length?'flex':'none';
   document.getElementById('eEmpty').style.display=H.length?'none':'block';
+
+  // 필터 배너
+  const banner=document.getElementById('filterBanner');
+  if(FLT!=='all'&&H.length){
+    const isNorm=FLT==='normal';
+    const label=isNorm?'📂 일반계좌':'🌿 절세계좌';
+    const color=isNorm?'#2563eb':'#16a34a';
+    const bg=isNorm?'#eff6ff':'#f0fdf4';
+    const border=isNorm?'#bfdbfe':'#bbf7d0';
+    banner.style.display='block';
+    banner.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;background:${bg};border:1.5px solid ${border};border-radius:12px;padding:9px 14px">
+      <span style="font-size:12px;font-weight:700;color:${color}">${label} 종목만 보는 중</span>
+      <button onclick="setFlt('all')" style="font-size:11px;color:${color};background:none;border:1px solid ${border};border-radius:7px;padding:3px 10px;cursor:pointer;font-weight:600">전체보기 ✕</button>
+    </div>`;
+  }else{
+    banner.style.display='none';
+  }
 
   let fil=H.filter(h=>{
     if(FLT==='normal'){
@@ -2816,7 +2840,7 @@ function render(){
       var spinEl=isLd?'<span class="spin" style="width:14px;height:14px;border-color:rgba(255,255,255,.4);border-top-color:#fff;margin:0"></span>':initials;
       var subTxt=fN(dispQty)+'주'+(usd?' · <span style="color:#2563eb">'+usd+'</span>':'');
 
-      return '<div style="'+border+';position:relative" data-id="'+id+'" '+(SORT==='custom'?'draggable="true" class="drag-item"':'')+'>'
+      return '<div style="'+border+';position:relative" data-id="'+id+'" '+(SORT==='custom'?'class="drag-item"':'')+'>'
         +'<div style="display:flex;align-items:center">'
         +'<button onclick="openBuyHistory('+id+')" style="flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:18px 16px;border:none;background:none;cursor:pointer;text-align:left">'
           +'<div class="sicon" style="background:'+bg+'">'+spinEl+'</div>'
@@ -2837,6 +2861,8 @@ function render(){
   if(TAB==='sim')renderSim(dvH,tV);
   if(TAB==='chart')renderPie(H,tV);
   if(TAB==='hist')renderHist();
+  // 사용자지정 모드면 드래그 핸들 바인딩
+  if(SORT==='custom')setTimeout(_bindDragHandles,0);
 }
 
 /* ===== SIM ===== */
@@ -3267,8 +3293,9 @@ function setFlt(f){
   });
   render();
 }
-// ── 사용자지정 드래그&드롭 ──
-let _dragSrcId=null, _dragOverKey=null, _touchDragEl=null, _touchDragId=null;
+// ── 사용자지정 드래그 (pointer events 기반 - PC/모바일 통합) ──
+let _dragId=null, _dragEl=null, _ghost=null, _dragOverKey=null;
+let _touchDragEl=null, _touchDragId=null; // 하위호환용
 
 function _getAllDragItems(){return Array.from(document.querySelectorAll('#hList [data-id]'));}
 function _clearDragStyles(){
@@ -3276,43 +3303,22 @@ function _clearDragStyles(){
     el.classList.remove('drag-dragging','drag-over-top','drag-over-bot');
     el.style.transform=''; el.style.transition='';
   });
+  if(_ghost&&_ghost.parentNode)_ghost.parentNode.removeChild(_ghost);
+  _ghost=null;
 }
 
-document.addEventListener('dragstart',function(e){
-  if(SORT!=='custom')return;
-  const item=e.target.closest('[data-id]');
-  if(!item)return;
-  _dragSrcId=Number(item.dataset.id);
-  e.dataTransfer.effectAllowed='move';
-  e.dataTransfer.setData('text/plain',String(_dragSrcId));
-  setTimeout(()=>item.classList.add('drag-dragging'),0);
-});
-
-document.addEventListener('dragend',function(){
-  _clearDragStyles(); _dragSrcId=null; _dragOverKey=null;
-});
-
-document.addEventListener('dragover',function(e){
-  if(SORT!=='custom'||!_dragSrcId)return;
-  e.preventDefault();
-  const item=e.target.closest('[data-id]');
-  if(!item)return;
-  const tid=Number(item.dataset.id);
-  if(tid===_dragSrcId)return;
-  const rect=item.getBoundingClientRect();
-  const isTop=e.clientY<rect.top+rect.height/2;
+function _applyShift(srcIdx, tid, isTop){
+  const all=_getAllDragItems();
+  const tgtIdx=all.findIndex(el=>Number(el.dataset.id)===tid);
+  const insertIdx=isTop?tgtIdx:tgtIdx+1;
+  const PUSH=62;
   const key=tid+'_'+(isTop?'t':'b');
   if(_dragOverKey===key)return;
   _dragOverKey=key;
-  const all=_getAllDragItems();
-  const srcIdx=all.findIndex(el=>Number(el.dataset.id)===_dragSrcId);
-  const tgtIdx=all.findIndex(el=>Number(el.dataset.id)===tid);
-  const insertIdx=isTop?tgtIdx:tgtIdx+1;
-  const PUSH=56;
   all.forEach((el,i)=>{
     el.classList.remove('drag-over-top','drag-over-bot');
-    el.style.transition='transform .2s cubic-bezier(.4,0,.2,1)';
-    if(Number(el.dataset.id)===_dragSrcId){el.style.transform='';return;}
+    el.style.transition='transform .18s cubic-bezier(.4,0,.2,1)';
+    if(Number(el.dataset.id)===_dragId){el.style.transform='';return;}
     if(srcIdx<insertIdx){
       el.style.transform=(i>srcIdx&&i<insertIdx)?`translateY(-${PUSH}px)`:'';
     }else{
@@ -3320,24 +3326,22 @@ document.addEventListener('dragover',function(e){
     }
     if(Number(el.dataset.id)===tid) el.classList.add(isTop?'drag-over-top':'drag-over-bot');
   });
-});
+}
 
-document.addEventListener('dragleave',function(e){
-  const list=document.getElementById('hList');
-  if(list&&!list.contains(e.relatedTarget)) _clearDragStyles();
-});
-
-document.addEventListener('drop',function(e){
-  if(SORT!=='custom')return;
-  e.preventDefault();
-  const item=e.target.closest('[data-id]');
+function _commitDrop(clientY){
+  const all=_getAllDragItems();
+  let tid=null, insertBefore=true;
+  all.forEach(el=>{
+    if(Number(el.dataset.id)===_dragId)return;
+    const r=el.getBoundingClientRect();
+    if(clientY>=r.top&&clientY<=r.bottom){
+      tid=Number(el.dataset.id);
+      insertBefore=clientY<r.top+r.height/2;
+    }
+  });
   _clearDragStyles();
-  if(!item||!_dragSrcId)return;
-  const tid=Number(item.dataset.id);
-  if(tid===_dragSrcId)return;
-  const rect=item.getBoundingClientRect();
-  const insertBefore=e.clientY<rect.top+rect.height/2;
-  const fromIdx=D.h.findIndex(x=>x.id===_dragSrcId);
+  if(!tid)return;
+  const fromIdx=D.h.findIndex(x=>x.id===_dragId);
   let toIdx=D.h.findIndex(x=>x.id===tid);
   if(fromIdx===-1||toIdx===-1)return;
   const moved=D.h.splice(fromIdx,1)[0];
@@ -3345,123 +3349,80 @@ document.addEventListener('drop',function(e){
   D.h.splice(insertBefore?toIdx:toIdx+1,0,moved);
   D.customOrder=D.h.map(x=>x.id);
   save();render();
-  _dragSrcId=null; _dragOverKey=null;
-});
-
-// 터치 드래그 (모바일 - iOS Safari 완전 지원)
-let _touchY=0, _touchTimer=null, _touchStartY=0, _touchLastTargetId=null;
-const TOUCH_PUSH=38;
-
-function _touchCleanup(){
-  document.querySelectorAll('#hList [data-id]').forEach(el=>{
-    el.classList.remove('drag-dragging','drag-over-top','drag-over-bot');
-    el.style.transform='';
-    el.style.transition='';
-  });
-  _touchDragId=null;_touchDragEl=null;_touchLastTargetId=null;
 }
 
-document.addEventListener('touchstart',function(e){
-  if(SORT!=='custom')return;
-  const handle=e.target.closest('.drag-handle');
-  if(!handle)return;
-  const item=handle.closest('[data-id]');
-  if(!item)return;
-  _touchDragId=parseInt(item.dataset.id);
-  _touchDragEl=item;
-  _touchStartY=_touchY=e.touches[0].clientY;
-  _touchTimer=setTimeout(()=>{
-    if(_touchDragEl)_touchDragEl.classList.add('drag-dragging');
-  },100);
-},{passive:true});
+// 핸들에 mousedown/touchstart 달기 (render 후 호출)
+function _bindDragHandles(){
+  document.querySelectorAll('.drag-handle').forEach(handle=>{
+    handle.onmousedown=function(e){
+      if(SORT!=='custom')return;
+      e.preventDefault();
+      const item=handle.closest('[data-id]');
+      if(!item)return;
+      _dragId=Number(item.dataset.id);
+      _dragEl=item;
+      _dragOverKey=null;
+      const all=_getAllDragItems();
+      const srcIdx=all.findIndex(el=>Number(el.dataset.id)===_dragId);
 
-document.addEventListener('touchmove',function(e){
-  if(!_touchDragId||SORT!=='custom')return;
-  const cy=e.touches[0].clientY;
-  const dy=cy-_touchStartY;
+      // 고스트 복제
+      _ghost=item.cloneNode(true);
+      _ghost.style.cssText=`position:fixed;width:${item.offsetWidth}px;opacity:.85;pointer-events:none;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.2);border-radius:16px;background:#fff;transition:none`;
+      const r=item.getBoundingClientRect();
+      _ghost.style.left=r.left+'px';
+      _ghost.style.top=r.top+'px';
+      document.body.appendChild(_ghost);
+      item.classList.add('drag-dragging');
 
-  // 드래그 중인 아이템 따라오기
-  if(_touchDragEl){
-    _touchDragEl.style.transition='none';
-    _touchDragEl.style.transform=`translateY(${dy}px) scale(1.03)`;
-    _touchDragEl.style.boxShadow='0 8px 24px rgba(0,0,0,.18)';
-    _touchDragEl.style.zIndex='99';
-  }
+      function onMove(ev){
+        const cy=ev.clientY||ev.touches?.[0]?.clientY;
+        const cx=ev.clientX||ev.touches?.[0]?.clientX;
+        if(!cy)return;
+        _ghost.style.top=(cy-r.height/2)+'px';
+        _ghost.style.left=(cx-r.width/2)+'px';
+        // 어느 카드 위에 있는지
+        const hovered=all.find(el=>{
+          if(Number(el.dataset.id)===_dragId)return false;
+          const er=el.getBoundingClientRect();
+          return cy>=er.top&&cy<=er.bottom;
+        });
+        if(hovered){
+          const er=hovered.getBoundingClientRect();
+          _applyShift(srcIdx, Number(hovered.dataset.id), cy<er.top+er.height/2);
+        }else{
+          _dragOverKey=null;
+          all.forEach(el=>{
+            if(Number(el.dataset.id)===_dragId)return;
+            el.classList.remove('drag-over-top','drag-over-bot');
+            el.style.transition='transform .18s ease';
+            el.style.transform='';
+          });
+        }
+      }
 
-  // 어느 아이템 위에 있는지 감지
-  const allItems=Array.from(document.querySelectorAll('#hList [data-id]'));
-  const srcIdx=allItems.findIndex(el=>parseInt(el.dataset.id)===_touchDragId);
-  let targetId=null, insertBefore=true;
+      function onUp(ev){
+        const cy=ev.clientY||(ev.changedTouches?.[0]?.clientY);
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        document.removeEventListener('touchmove',onMove);
+        document.removeEventListener('touchend',onUp);
+        if(cy)_commitDrop(cy);
+        else _clearDragStyles();
+        _dragId=null; _dragEl=null; _dragOverKey=null;
+      }
 
-  allItems.forEach(el=>{
-    if(parseInt(el.dataset.id)===_touchDragId)return;
-    const rect=el.getBoundingClientRect();
-    if(cy>=rect.top&&cy<=rect.bottom){
-      targetId=parseInt(el.dataset.id);
-      insertBefore=cy<rect.top+rect.height/2;
-    }
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+      document.addEventListener('touchmove',onMove,{passive:true});
+      document.addEventListener('touchend',onUp);
+    };
+
+    // 터치도 동일하게
+    handle.ontouchstart=function(e){
+      handle.onmousedown(e.touches[0]||e);
+    };
   });
-
-  if(targetId===_touchLastTargetId)return;
-  _touchLastTargetId=targetId;
-
-  // 다른 아이템들 밀기 애니메이션
-  allItems.forEach((el,i)=>{
-    if(parseInt(el.dataset.id)===_touchDragId)return;
-    el.classList.remove('drag-over-top','drag-over-bot');
-    el.style.transition='transform .18s cubic-bezier(.4,0,.2,1)';
-    if(!targetId){el.style.transform='';return;}
-    const tgtIdx=allItems.findIndex(x=>parseInt(x.dataset.id)===targetId);
-    const insertIdx=insertBefore?tgtIdx:tgtIdx+1;
-    if(srcIdx<insertIdx){
-      el.style.transform=(i>srcIdx&&i<insertIdx)?`translateY(-${TOUCH_PUSH}px)`:'';
-    }else{
-      el.style.transform=(i>=insertIdx&&i<srcIdx)?`translateY(${TOUCH_PUSH}px)`:'';
-    }
-    if(parseInt(el.dataset.id)===targetId){
-      el.classList.add(insertBefore?'drag-over-top':'drag-over-bot');
-    }
-  });
-},{passive:true});
-
-document.addEventListener('touchend',function(e){
-  if(!_touchDragId||SORT!=='custom')return;
-  clearTimeout(_touchTimer);
-
-  // 드래그 아이템 원위치 스타일 초기화
-  if(_touchDragEl){
-    _touchDragEl.style.transform='';
-    _touchDragEl.style.boxShadow='';
-    _touchDragEl.style.zIndex='';
-    _touchDragEl.style.transition='';
-  }
-
-  const cy=e.changedTouches[0].clientY;
-  const allItems=Array.from(document.querySelectorAll('#hList [data-id]'));
-  let targetId=null, insertBefore=true;
-  allItems.forEach(el=>{
-    if(parseInt(el.dataset.id)===_touchDragId)return;
-    const rect=el.getBoundingClientRect();
-    if(cy>=rect.top&&cy<=rect.bottom){
-      targetId=parseInt(el.dataset.id);
-      insertBefore=cy<rect.top+rect.height/2;
-    }
-  });
-
-  if(targetId&&targetId!==_touchDragId){
-    const fromIdx=D.h.findIndex(x=>x.id===_touchDragId);
-    let toIdx=D.h.findIndex(x=>x.id===targetId);
-    if(fromIdx!==-1&&toIdx!==-1){
-      const moved=D.h.splice(fromIdx,1)[0];
-      toIdx=D.h.findIndex(x=>x.id===targetId);
-      D.h.splice(insertBefore?toIdx:toIdx+1,0,moved);
-      D.customOrder=D.h.map(x=>x.id);
-      save();
-    }
-  }
-  _touchCleanup();
-  render();
-});
+}
 
 let SORT_DIR={val:'desc',pnl:'desc'}; // 각 정렬의 현재 방향
 
