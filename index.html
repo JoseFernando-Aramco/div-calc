@@ -2303,25 +2303,29 @@ function guessEtfDiv(n){
 }
 
 function toSym(n){
-  // 1) getAllDB에서 이름 매칭
-  const db=getAllDB().find(x=>x.n===n||(x.s&&x.s===n));
+  if(!n)return '';
+  // 1) SEARCH_DB 직접 검색 (getAllDB 중복제거 우회 — 같은 sym에 다른 이름 alias 처리)
+  const db=SEARCH_DB.find(x=>x.n===n||(x.s&&x.s===n));
   if(db&&db.s)return db.s;
+  const dyn=(typeof DYN_DB!=='undefined'?DYN_DB:[]).find(x=>x.n===n||(x.s&&x.s===n));
+  if(dyn&&dyn.s)return dyn.s;
   // 2) 6자리 숫자 코드
   if(/^\d{6}$/.test(n))return n+'.KS';
-  // 3) 알파벳+숫자 6자리 (신규 ETF 코드)
-  if(/^[A-Z0-9]{6,7}$/.test(n)&&!/^[A-Z]{2,5}$/.test(n))return n+'.KS';
-  // 4) 미국 주식 티커 (2~5자 대문자)
-  if(/^[A-Z]{2,5}$/.test(n.trim()))return n.trim();
-  // 5) 국내 ETF 브랜드명 → KS 마킹
+  // 3) 알파벳+숫자 6-7자리 KRX 코드
+  if(/^[A-Z0-9]{6,7}$/.test(n)&&!/^[A-Z]{1,5}$/.test(n))return n+'.KS';
+  // 4) 미국 주식 티커 (1~5자 대문자)
+  if(/^[A-Z]{1,5}$/.test(n.trim()))return n.trim();
+  // 5) 국내 ETF 브랜드명
   if(/^(KODEX|TIGER|RISE|ACE|SOL|HANARO|KBSTAR|ARIRANG|TIMEFOLIO|PLUS|KIWOOM|WON|FOCUS|1Q|HK|마이다스|마이티|파워)/.test(n))return '___KR___';
   return n.toUpperCase();
 }
 
 function isKRName(n){
-  // 이름으로 국내 종목 여부 판단
+  if(!n)return false;
   if(/[가-힣]/.test(n))return true;
   if(/^(KODEX|TIGER|RISE|ACE|SOL|HANARO|KBSTAR|ARIRANG|TIMEFOLIO|PLUS|KIWOOM|WON|FOCUS|1Q|HK)/.test(n))return true;
-  const db=getAllDB().find(x=>x.n===n);
+  // SEARCH_DB 직접 검색
+  const db=SEARCH_DB.find(x=>x.n===n);
   if(db&&db.s)return isKR(db.s);
   return false;
 }
@@ -2365,28 +2369,33 @@ async function yahooQuote(sym){
   const code=sym.split('.')[0];
   const ext=sym.split('.')[1];
   if(ext==='KS'||ext==='KQ'){
-    if(/^A/i.test(code)){
-      // A로 시작하는 코드 → A없는 버전을 먼저 시도 (Yahoo Finance 형식)
-      syms.unshift(code.slice(1)+'.'+ext);
-    } else if(/^[0-9]/.test(code)){
-      // 숫자로 시작 → A붙인 버전도 시도
-      syms.push('A'+code+'.'+ext);
-    }
+    if(/^A/i.test(code)){syms.unshift(code.slice(1)+'.'+ext);}
+    else if(/^[0-9]/.test(code)){syms.push('A'+code+'.'+ext);}
   }
+  // Yahoo Finance 엔드포인트 목록 (v8 차트, v7 quote)
+  function getUrls(s){return[
+    'https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(s)+'?interval=1d&range=1d',
+    'https://query2.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(s)+'?interval=1d&range=1d',
+    'https://query1.finance.yahoo.com/v7/finance/quote?symbols='+encodeURIComponent(s),
+  ];}
   for(const s of syms){
-    const url='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(s)+'?interval=1d&range=1d';
-    for(const mkP of PROXIES){
-      try{
-        const r=await fetch(mkP(url));if(!r.ok)continue;
-        const text=await r.text();
-        const j=JSON.parse(text.startsWith('{"contents"')?JSON.parse(text).contents:text);
-        const meta=j?.chart?.result?.[0]?.meta;
-        const p=meta?.regularMarketPrice;
-        if(p&&p>0){
-          const name=meta?.longName||meta?.shortName||null;
-          return{price:p,name,resolvedSym:s};
-        }
-      }catch{}
+    for(const url of getUrls(s)){
+      for(const mkP of PROXIES){
+        try{
+          const r=await fetch(mkP(url));if(!r.ok)continue;
+          const text=await r.text();
+          const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
+          const j=JSON.parse(raw);
+          // v8/chart 형식
+          const meta=j?.chart?.result?.[0]?.meta;
+          const p1=meta?.regularMarketPrice;
+          if(p1&&p1>0)return{price:p1,name:meta?.longName||meta?.shortName||null,resolvedSym:s};
+          // v7/quote 형식
+          const q=j?.quoteResponse?.result?.[0];
+          const p2=q?.regularMarketPrice;
+          if(p2&&p2>0)return{price:p2,name:q?.longName||q?.shortName||null,resolvedSym:s};
+        }catch{}
+      }
     }
   }
   throw new Error('조회실패');
@@ -2489,59 +2498,64 @@ async function naverPriceJsonp(code){
 
 async function naverPrice(code){
   function parseNum(v){if(v==null)return 0;const n=Number(String(v).replace(/,/g,''));return isNaN(n)?0:Math.round(n);}
+  function unwrap(text){
+    // allorigins/corsproxy가 {"contents":"..."} 로 감싸는 경우 unwrap
+    if(!text)return '';
+    try{if(text.startsWith('{"contents"')){const j=JSON.parse(text);return j.contents||j.data||text;}}catch{}
+    return text;
+  }
+  function parsePrice(raw){
+    // fchart XML: data='날짜|시가|고가|저가|종가|거래량'
+    const fc=raw.match(/data=['"][\d]+\|[\d]+\|[\d]+\|[\d]+\|([\d]+)\|/);
+    if(fc){const p=parseNum(fc[1]);if(p>100)return p;}
+    // JSON
+    try{
+      const j=JSON.parse(raw);
+      const r=j?.result||j?.data||{};
+      const p1=parseNum(r?.tradePrice??r?.closePrice??r?.price??r?.현재가);
+      if(p1>100)return p1;
+      const p2=parseNum(j?.closePrice??j?.currentPrice??j?.tradePrice??j?.stockPrice??j?.price);
+      if(p2>100)return p2;
+    }catch{}
+    // HTML - 다양한 패턴
+    const patterns=[
+      /id=["']now_val["'][^>]*>([\d,]+)/,
+      /id=["']now_value["'][^>]*>([\d,]+)/,
+      /"regularMarketPrice":([\d.]+)/,
+      /class=["']no_today["'][^>]*>[\s\S]*?<em[^>]*>([\d,]+)/,
+    ];
+    for(const pat of patterns){const m=raw.match(pat);if(m){const p=parseNum(m[1]);if(p>100)return p;}}
+    return 0;
+  }
   const c=code.replace(/^A/i,'').replace(/\.(KS|KQ)$/,'').padStart(6,'0');
 
-  // 1순위: JSONP 직접 호출 (프록시 불필요)
-  const jp=await naverPriceJsonp(c);
-  if(jp&&jp>100)return jp;
+  // 1) 직접 fetch 시도 (CORS 허용 시)
+  const directP=await naverPriceDirect(c);
+  if(directP>100)return directP;
 
-  const proxies=[
+  // 2) 프록시 순차 시도
+  const allProxies=[
     u=>'https://corsproxy.io/?'+encodeURIComponent(u),
-    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+    u=>'https://api.allorigins.win/get?url='+encodeURIComponent(u),  // get 형식 (JSON 래핑)
+    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),  // raw 형식
     u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u),
     u=>'https://thingproxy.freeboard.io/fetch/'+u,
   ];
-
-  const urls=[
+  const allUrls=[
     `https://fchart.stock.naver.com/sise.nhn?symbol=${c}&timeframe=day&count=1&requestType=0`,
     `https://polling.finance.naver.com/api/realtime/domestic/stock/${c}`,
     `https://m.stock.naver.com/api/stock/${c}/basic`,
-    `https://finance.naver.com/item/sise.nhn?code=${c}`, // HTML fallback
+    `https://finance.naver.com/item/sise.nhn?code=${c}`,
   ];
-
-  for(const url of urls){
-    for(const mkP of proxies){
+  for(const url of allUrls){
+    for(const mkP of allProxies){
       try{
         const r=await fetch(mkP(url));
         if(!r.ok)continue;
         const text=await r.text();
-        if(!text||text.length<10)continue;
-
-        // 1) fchart XML: data='날짜|시가|고가|저가|종가|거래량'
-        const fc=text.match(/data=['"][\d]+\|[\d]+\|[\d]+\|[\d]+\|([\d]+)\|/);
-        if(fc){const p=parseNum(fc[1]);if(p>100)return p;}
-
-        // 2) polling API JSON
-        try{
-          const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
-          const j=JSON.parse(raw);
-          // polling.finance.naver.com
-          const r2=j?.result||j?.data||{};
-          const p2=parseNum(r2?.tradePrice??r2?.closePrice??r2?.price??r2?.현재가);
-          if(p2>100)return p2;
-          // m.stock.naver.com/api/stock/basic
-          const p3=parseNum(j?.closePrice??j?.currentPrice??j?.tradePrice??j?.stockPrice??j?.price);
-          if(p3>100)return p3;
-        }catch{}
-
-        // 3) HTML 파싱 - 네이버 증권 sise 페이지
-        const html1=text.match(/id=["']now_value["'][^>]*>([\d,]+)/);
-        if(html1){const p=parseNum(html1[1]);if(p>100)return p;}
-        const html2=text.match(/<dd class=["']today["'][^>]*>.*?([\d,]+)원/s);
-        if(html2){const p=parseNum(html2[1]);if(p>100)return p;}
-        // 일반적인 숫자 패턴 (종가)
-        const html3=text.match(/현재가[^>]*>[^<]*([\d,]{4,})/);
-        if(html3){const p=parseNum(html3[1]);if(p>100)return p;}
+        if(!text||text.length<5)continue;
+        const p=parsePrice(unwrap(text));  // 반드시 unwrap 후 파싱
+        if(p>100)return p;
       }catch{}
     }
   }
@@ -4515,8 +4529,12 @@ document.addEventListener('mousedown',e=>{
       h.sym=h.sym.slice(1); changed=true;
     }
 
+    // 잘못된 sym 교정 (공백 포함 = 종목명이 sym에 들어간 경우)
+    if(h.sym&&h.sym.includes(' ')){
+      h.sym=''; changed=true;
+    }
+
     // 심볼 교정: DB에 있고 현재 sym이 비어있을 때만 업데이트
-    // (이미 시세조회로 확인된 sym은 덮어쓰지 않음)
     if(!h.sym){
       const dbBySym=SEARCH_DB.find(x=>x.n===h.n&&x.s);
       if(dbBySym){h.sym=dbBySym.s;changed=true;}
