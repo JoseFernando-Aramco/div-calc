@@ -3857,6 +3857,7 @@ function openBuyHistory(id){
   // 종목 요약 정보
   const dyTxt=h.isDv&&h.dy>0?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #f3f3f1"><span style="color:#aaa;font-size:12px">배당수익률</span><span style="font-size:12px;color:#d97706;font-weight:600">연 ${h.dy.toFixed(1)}% · 월 ${fmt(Math.round(val*h.dy/100/12))}</span></div>`:'';
   const errTxt=h.err?`<div style="background:#fff7ed;border-radius:7px;padding:5px 9px;font-size:11px;color:#c2410c;margin-bottom:6px">⚠️ 시세 조회 실패 (${h.sym})</div>`:'';
+  const isUS=!(isKR(h.sym||'')||isKRName(h.n||''));
   document.getElementById('histOvInfo').innerHTML=`
 ${errTxt}
 <div style="background:#f9f8f5;border-radius:10px;padding:10px 12px;margin-bottom:12px">
