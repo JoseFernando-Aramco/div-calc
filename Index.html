@@ -2786,7 +2786,8 @@ function render(){
   document.getElementById('hList').innerHTML = fil.length===0 ? '' :
     '<div style="background:#fff;border-radius:20px;border:1px solid #eeebe4;margin-bottom:8px;overflow:hidden">' +
     fil.map(function(h,fi){
-      var ci=H.indexOf(h), cur=h.cur||h.avg;
+      // 색상: 위치가 아닌 종목 고유 ID 기준으로 고정
+      var ci=Math.abs(parseInt(String(h.id).slice(-4))||0)%COLORS.length, cur=h.cur||h.avg;
       // 탭별 수량 계산
       var dispQty=h.qty;
       if(FLT==='normal'||FLT==='tax'){
@@ -3270,35 +3271,75 @@ document.addEventListener('dragstart',function(e){
   if(!item||SORT!=='custom')return;
   _dragSrcId=parseInt(item.dataset.id);
   e.dataTransfer.effectAllowed='move';
-  setTimeout(()=>item.classList.add('drag-dragging'),0);
+  setTimeout(()=>{item.classList.add('drag-dragging');},0);
 });
+
 document.addEventListener('dragend',function(e){
   document.querySelectorAll('.drag-item').forEach(el=>{
     el.classList.remove('drag-dragging','drag-over-top','drag-over-bot');
+    el.style.transform='';
+    el.style.transition='';
   });
   _dragSrcId=null;
 });
+
 document.addEventListener('dragover',function(e){
   if(SORT!=='custom')return;
   e.preventDefault();
   e.dataTransfer.dropEffect='move';
   const item=e.target.closest('[data-id]');
   if(!item||parseInt(item.dataset.id)===_dragSrcId)return;
-  // 마우스가 아이템 상단/하단 어느쪽인지 판단
+
   const rect=item.getBoundingClientRect();
-  const mid=rect.top+rect.height/2;
-  document.querySelectorAll('.drag-item').forEach(el=>el.classList.remove('drag-over-top','drag-over-bot'));
-  item.classList.add(e.clientY<mid?'drag-over-top':'drag-over-bot');
+  const isTop=e.clientY<rect.top+rect.height/2;
+
+  // 이전 상태 초기화
+  const allItems=Array.from(document.querySelectorAll('#hList [data-id]'));
+  allItems.forEach(el=>{
+    el.classList.remove('drag-over-top','drag-over-bot');
+    el.style.transition='transform .18s cubic-bezier(.4,0,.2,1)';
+  });
+
+  // 삽입 위치 표시
+  item.classList.add(isTop?'drag-over-top':'drag-over-bot');
+
+  // 드래그 소스 위치와 타겟 위치 찾기
+  const srcIdx=allItems.findIndex(el=>parseInt(el.dataset.id)===_dragSrcId);
+  const tgtIdx=allItems.indexOf(item);
+  const insertIdx=isTop?tgtIdx:tgtIdx+1;
+  const PUSH=38; // px — 밀려나는 거리
+
+  allItems.forEach((el,i)=>{
+    if(parseInt(el.dataset.id)===_dragSrcId){el.style.transform='';return;}
+    // srcIdx→insertIdx 이동 시 중간 아이템들 밀기
+    if(srcIdx<insertIdx){
+      // 아래로 이동: src+1 ~ insertIdx-1 아이템들을 위로
+      el.style.transform=(i>srcIdx&&i<insertIdx)?`translateY(-${PUSH}px)`:'';
+    } else {
+      // 위로 이동: insertIdx ~ src-1 아이템들을 아래로
+      el.style.transform=(i>=insertIdx&&i<srcIdx)?`translateY(${PUSH}px)`:'';
+    }
+  });
 });
+
 document.addEventListener('dragleave',function(e){
-  const item=e.target.closest('[data-id]');
-  if(item)item.classList.remove('drag-over-top','drag-over-bot');
+  const list=document.getElementById('hList');
+  if(!list.contains(e.relatedTarget)){
+    document.querySelectorAll('.drag-item').forEach(el=>{
+      el.classList.remove('drag-over-top','drag-over-bot');
+      el.style.transform='';
+    });
+  }
 });
+
 document.addEventListener('drop',function(e){
   if(SORT!=='custom')return;
   e.preventDefault();
   const item=e.target.closest('[data-id]');
-  document.querySelectorAll('.drag-item').forEach(el=>el.classList.remove('drag-over-top','drag-over-bot','drag-dragging'));
+  document.querySelectorAll('.drag-item').forEach(el=>{
+    el.classList.remove('drag-over-top','drag-over-bot','drag-dragging');
+    el.style.transform='';
+  });
   if(!item)return;
   const targetId=parseInt(item.dataset.id);
   if(!_dragSrcId||_dragSrcId===targetId)return;
