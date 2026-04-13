@@ -3354,8 +3354,7 @@ function _commitDrop(clientY){
 // 핸들에 mousedown/touchstart 달기 (render 후 호출)
 function _bindDragHandles(){
   document.querySelectorAll('.drag-handle').forEach(handle=>{
-    // 공통 드래그 시작 로직
-    function startDrag(clientX, clientY){
+    function startDrag(startClientX, startClientY, isTouch){
       if(SORT!=='custom')return;
       const item=handle.closest('[data-id]');
       if(!item)return;
@@ -3366,65 +3365,77 @@ function _bindDragHandles(){
       const srcIdx=all.findIndex(el=>Number(el.dataset.id)===_dragId);
       const r=item.getBoundingClientRect();
 
+      // ── 드래그 시작 시 모든 카드 원본 위치 스냅샷 ──
+      const snapRects=all.map(el=>el.getBoundingClientRect());
+
       // 고스트
       _ghost=item.cloneNode(true);
-      _ghost.style.cssText=`position:fixed;width:${r.width}px;opacity:.85;pointer-events:none;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.2);border-radius:16px;background:#fff;transition:none;left:${r.left}px;top:${r.top}px`;
+      _ghost.style.cssText=`position:fixed;width:${r.width}px;opacity:.88;pointer-events:none;z-index:9999;box-shadow:0 10px 36px rgba(0,0,0,.22);border-radius:16px;background:#fff;transition:none;left:${r.left}px;top:${r.top}px`;
       document.body.appendChild(_ghost);
       item.classList.add('drag-dragging');
+
+      let rafId=null, lastTid=null, lastIsTop=null;
 
       function move(cx, cy){
         _ghost.style.left=(cx-r.width/2)+'px';
         _ghost.style.top=(cy-r.height/2)+'px';
-        const hovered=all.find(el=>{
-          if(Number(el.dataset.id)===_dragId)return false;
-          const er=el.getBoundingClientRect();
-          return cy>=er.top&&cy<=er.bottom;
+
+        if(rafId)return; // rAF 쓰로틀
+        rafId=requestAnimationFrame(()=>{
+          rafId=null;
+          // 스냅샷 기준으로 hit detection
+          let hovIdx=-1;
+          for(let i=0;i<all.length;i++){
+            if(Number(all[i].dataset.id)===_dragId)continue;
+            const sr=snapRects[i];
+            if(cy>=sr.top&&cy<=sr.bottom){hovIdx=i;break;}
+          }
+
+          if(hovIdx===-1){
+            if(lastTid!==null){
+              lastTid=null; lastIsTop=null; _dragOverKey=null;
+              all.forEach(el=>{
+                if(Number(el.dataset.id)===_dragId)return;
+                el.classList.remove('drag-over-top','drag-over-bot');
+                el.style.transition='transform .2s cubic-bezier(.4,0,.2,1)';
+                el.style.transform='';
+              });
+            }
+            return;
+          }
+
+          const tid=Number(all[hovIdx].dataset.id);
+          const sr=snapRects[hovIdx];
+          const isTop=cy<sr.top+sr.height/2;
+
+          if(tid===lastTid&&isTop===lastIsTop)return; // 변화없음
+          lastTid=tid; lastIsTop=isTop;
+          _applyShift(srcIdx, tid, isTop);
         });
-        if(hovered){
-          const er=hovered.getBoundingClientRect();
-          _applyShift(srcIdx, Number(hovered.dataset.id), cy<er.top+er.height/2);
-        }else{
-          _dragOverKey=null;
-          all.forEach(el=>{
-            if(Number(el.dataset.id)===_dragId)return;
-            el.classList.remove('drag-over-top','drag-over-bot');
-            el.style.transition='transform .18s ease';
-            el.style.transform='';
-          });
-        }
       }
 
       function end(cy){
+        if(rafId){cancelAnimationFrame(rafId);rafId=null;}
         _commitDrop(cy);
         _dragId=null; _dragEl=null; _dragOverKey=null;
       }
 
-      // 마우스 이벤트
-      function onMouseMove(e){move(e.clientX, e.clientY);}
-      function onMouseUp(e){
-        document.removeEventListener('mousemove',onMouseMove);
-        document.removeEventListener('mouseup',onMouseUp);
-        end(e.clientY);
-      }
-
-      // 터치 이벤트
-      function onTouchMove(e){
-        const t=e.touches[0];
-        move(t.clientX, t.clientY);
-      }
-      function onTouchEnd(e){
-        document.removeEventListener('touchmove',onTouchMove);
-        document.removeEventListener('touchend',onTouchEnd);
-        const t=e.changedTouches[0];
-        end(t.clientY);
-      }
-
-      if(clientX!==null){
-        // 마우스로 시작
+      if(!isTouch){
+        function onMouseMove(e){move(e.clientX,e.clientY);}
+        function onMouseUp(e){
+          document.removeEventListener('mousemove',onMouseMove);
+          document.removeEventListener('mouseup',onMouseUp);
+          end(e.clientY);
+        }
         document.addEventListener('mousemove',onMouseMove);
         document.addEventListener('mouseup',onMouseUp);
-      } else {
-        // 터치로 시작
+      }else{
+        function onTouchMove(e){const t=e.touches[0];move(t.clientX,t.clientY);}
+        function onTouchEnd(e){
+          document.removeEventListener('touchmove',onTouchMove);
+          document.removeEventListener('touchend',onTouchEnd);
+          end(e.changedTouches[0].clientY);
+        }
         document.addEventListener('touchmove',onTouchMove,{passive:true});
         document.addEventListener('touchend',onTouchEnd,{passive:true});
       }
@@ -3432,13 +3443,12 @@ function _bindDragHandles(){
 
     handle.onmousedown=function(e){
       e.preventDefault();
-      startDrag(e.clientX, e.clientY);
+      startDrag(e.clientX,e.clientY,false);
     };
-
     handle.ontouchstart=function(e){
       e.stopPropagation();
       const t=e.touches[0];
-      startDrag(null, t.clientY);
+      startDrag(t.clientX,t.clientY,true);
     };
   });
 }
