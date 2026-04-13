@@ -1740,8 +1740,16 @@ function render(){
   document.getElementById('eEmpty').style.display=H.length?'none':'block';
 
   let fil=H.filter(h=>{
-    if(FLT==='normal')return h.acct!=='tax';
-    if(FLT==='tax')return h.acct==='tax';
+    if(FLT==='normal'){
+      // buys 중 일반계좌 있으면 표시
+      const buys=h.buys||[];
+      return buys.length?buys.some(b=>b.acct!=='tax'):h.acct!=='tax';
+    }
+    if(FLT==='tax'){
+      // buys 중 절세계좌 있으면 표시
+      const buys=h.buys||[];
+      return buys.length?buys.some(b=>b.acct==='tax'):h.acct==='tax';
+    }
     return true;
   });
   if(SORT==='val')fil=[...fil].sort((a,b)=>(b.cur||b.avg)*b.qty-(a.cur||a.avg)*a.qty);
