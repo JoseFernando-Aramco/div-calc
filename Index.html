@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -155,6 +154,9 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
         <button onclick="document.getElementById('importFile').click();toggleMenu()" style="width:100%;padding:11px 14px;border:none;background:none;text-align:left;font-size:14px;color:#1c1917;cursor:pointer;border-radius:10px;display:flex;align-items:center;gap:10px;font-weight:500">
           <span style="font-size:16px">📥</span>불러오기
         </button>
+        <button onclick="openSsImport();toggleMenu()" style="width:100%;padding:11px 14px;border:none;background:none;text-align:left;font-size:14px;color:#2563eb;cursor:pointer;border-radius:10px;display:flex;align-items:center;gap:10px;font-weight:500">
+          <span style="font-size:16px">📸</span>스크린샷 인식
+        </button>
       </div>
     </div>
   </div>
@@ -216,21 +218,20 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 </div>
 
 <!-- 실현손익 탭 -->
-
 <div class="pane" id="pHist" style="display:none">
   <div id="histCont"></div>
 </div>
 
 <!-- 종목 추가 모달 -->
-
 <div class="ov" id="addOv" onclick="if(event.target===this)this.classList.remove('show')">
 <div class="modal" onclick="event.stopPropagation()">
   <div class="mt">종목 추가</div>
   <div class="fg" style="position:relative">
     <div class="fl">종목명</div>
-    <div class="iw"><input class="inp" id="aName" placeholder="삼성전자, JEPQ, KODEX…" autocomplete="off" oninput="doSearchDD(this.value);updateAvgCurrency(this.value)" onkeydown="if(event.key==='Escape')closeDD()"></div>
+    <div class="iw"><input class="inp" id="aName" placeholder="삼성전자, JEPQ, TSLA…" autocomplete="off" oninput="doSearchDD(this.value);updateAvgCurrency(this.value)" onkeydown="if(event.key==='Escape')closeDD()"></div>
     <div id="searchDD" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e8e3d8;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;max-height:220px;overflow-y:auto;margin-top:3px"></div>
   </div>
+  <div id="aDivChip" style="display:none;background:#f0fdf4;border-radius:8px;padding:7px 12px;font-size:12px;color:#16a34a;margin-bottom:4px"></div>
   <div class="fr">
     <div class="fg">
       <div class="fl" style="display:flex;justify-content:space-between;align-items:center">
@@ -242,10 +243,6 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
     <div class="fg"><div class="fl">수량 *</div><div class="iw"><input class="inp" id="aQty" type="number" inputmode="numeric" placeholder="100"><span class="suf">주</span></div></div>
   </div>
   <div class="fr">
-    <div class="fg"><div class="fl">연 배당수익률</div><div class="iw"><input class="inp" id="aDy" type="number" inputmode="decimal" placeholder="12.5"><span class="suf">%</span></div></div>
-    <div class="fg"><div class="fl">배당 주기</div><div class="iw"><select class="inp" id="aDf" style="-webkit-appearance:auto;appearance:auto"><option>없음</option><option>월배당</option><option>분기배당</option><option>반기배당</option><option>연배당</option></select></div></div>
-  </div>
-  <div class="fr">
     <div class="fg"><div class="fl">매수일</div><div class="iw"><input class="inp" id="aDate" type="date"></div></div>
     <div class="fg"><div class="fl">계좌 유형</div>
     <div class="iw"><select class="inp" id="aAcct" style="-webkit-appearance:auto;appearance:auto">
@@ -253,8 +250,10 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
       <option value="tax">절세 (ISA/IRP/연금)</option>
     </select></div></div>
   </div>
+  <input type="hidden" id="aDy" value="0">
+  <input type="hidden" id="aDf" value="없음">
   <div id="dbStatus" style="font-size:11px;color:#aaa;margin-bottom:8px;text-align:center">종목 DB 준비 중...</div>
-  <div class="hint">추가 즉시 현재가를 자동 조회합니다. 국내외 모든 종목 입력 가능합니다.</div>
+  <div class="hint">추가 즉시 현재가와 배당 정보를 자동 조회합니다.</div>
   <div class="mbtns">
     <button class="bcn" onclick="document.getElementById('addOv').classList.remove('show')">취소</button>
     <button class="bsb" onclick="addHolding()">추가하기</button>
@@ -263,7 +262,6 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 </div>
 
 <!-- 추가매수 모달 -->
-
 <div class="ov" id="buyOv" onclick="if(event.target===this)this.classList.remove('show')">
 <div class="modal" onclick="event.stopPropagation()" style="padding:18px 16px 30px">
   <div style="font-size:17px;font-weight:800;margin-bottom:4px">추가매수</div>
@@ -297,7 +295,6 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 </div>
 
 <!-- 매도 모달 -->
-
 <div class="ov" id="sellOv" onclick="if(event.target===this)this.classList.remove('show')">
 <div class="modal" onclick="event.stopPropagation()">
   <div class="mt">매도</div>
@@ -315,7 +312,6 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 </div>
 
 <!-- 배당 목표 설정 모달 -->
-
 <div class="ov" id="goalOv" onclick="if(event.target===this)this.classList.remove('show')">
 <div class="modal" onclick="event.stopPropagation()">
   <div class="mt">월 배당 목표 설정</div>
@@ -328,7 +324,37 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 </div>
 </div>
 
-<!-- 재매수 시뮬 모달 -->
+<!-- 스크린샷 인식 모달 -->
+<div class="ov" id="ssOv" onclick="if(event.target===this)closeSsModal()">
+<div class="modal" onclick="event.stopPropagation()" style="padding:20px 18px 32px">
+  <div style="font-size:17px;font-weight:800;margin-bottom:14px">📸 스크린샷 인식</div>
+  <div id="ssDropZone" onclick="document.getElementById('ssFileInput').click()" style="border:2px dashed #bfdbfe;border-radius:14px;padding:28px;text-align:center;cursor:pointer;background:#f0f7ff;margin-bottom:12px">
+    <div style="font-size:32px;margin-bottom:6px">🖼️</div>
+    <div style="font-size:14px;font-weight:700;color:#2563eb">탭해서 스크린샷 선택</div>
+    <div style="font-size:11px;color:#93c5fd;margin-top:3px">PNG · JPG</div>
+  </div>
+  <input type="file" id="ssFileInput" accept="image/png,image/jpeg,image/jpg" style="display:none">
+  <div id="ssPreview" style="display:none;margin-bottom:12px;text-align:center">
+    <img id="ssPreviewImg" style="max-width:100%;max-height:180px;border-radius:10px;object-fit:contain">
+  </div>
+  <div id="ssStatus" style="display:none;padding:10px;background:#eff6ff;border-radius:10px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="spin"></span>
+      <span id="ssStatusTxt" style="font-size:12px;color:#2563eb"></span>
+    </div>
+    <div id="ssProgress" style="margin-top:6px;height:4px;background:#bfdbfe;border-radius:2px;overflow:hidden">
+      <div id="ssProgressBar" style="height:4px;background:#2563eb;border-radius:2px;width:0%;transition:width .3s"></div>
+    </div>
+  </div>
+  <div id="ssResult" style="display:none;margin-bottom:10px"></div>
+  <div style="display:flex;gap:8px">
+    <button class="bcn" style="flex:1" onclick="closeSsModal()">닫기</button>
+    <button class="bsb" id="ssAnalyzeBtn" onclick="runSsAnalyze()" style="display:none;flex:2">🔍 인식하기</button>
+    <button class="bsb" id="ssImportBtn" onclick="confirmSsImport()" style="display:none;flex:2;background:#16a34a;border-color:#16a34a">✅ 추가하기</button>
+  </div>
+</div>
+</div>
+
 
 <div class="ov" id="reinvestOv" onclick="if(event.target===this)this.classList.remove('show')">
 <div class="modal" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto">
@@ -339,7 +365,6 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 </div>
 
 <!-- 매수내역/종목상세 모달 -->
-
 <div class="ov" id="histOv" onclick="if(event.target===this)this.classList.remove('show')">
 <div class="modal" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto">
   <div class="mt" id="histOvTitle">종목 상세</div>
@@ -355,7 +380,6 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 </div>
 
 <!-- 매수내역 수정 모달 -->
-
 <div class="ov" id="editBuyOv" onclick="if(event.target===this)this.classList.remove('show')">
 <div class="modal" onclick="event.stopPropagation()">
   <div class="mt">매수 내역 수정</div>
@@ -378,55 +402,312 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 const FKEY='d7cp7hhr01qv03et7mg0d7cp7hhr01qv03et7mgg';
 
 const SEARCH_DB=[
-  // ── 개별주 ──
+  // ── KOSPI 대형주 ──
   {n:'삼성전자',s:'005930.KS',dy:2.5,df:'분기배당',isDv:true},
+  {n:'삼성전자우',s:'005935.KS',dy:2.7,df:'분기배당',isDv:true},
   {n:'SK하이닉스',s:'000660.KS',dy:0.8,df:'분기배당',isDv:true},
-  {n:'현대차',s:'005380.KS',dy:3.5,df:'분기배당',isDv:true},
-  {n:'기아',s:'000270.KS',dy:4.0,df:'분기배당',isDv:true},
-  {n:'POSCO홀딩스',s:'005490.KS',dy:3.0,df:'분기배당',isDv:true},
   {n:'LG에너지솔루션',s:'373220.KS',dy:0,df:'없음',isDv:false},
   {n:'삼성바이오로직스',s:'207940.KS',dy:0,df:'없음',isDv:false},
+  {n:'현대차',s:'005380.KS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'기아',s:'000270.KS',dy:4.0,df:'분기배당',isDv:true},
   {n:'셀트리온',s:'068270.KS',dy:0.5,df:'연배당',isDv:true},
+  {n:'POSCO홀딩스',s:'005490.KS',dy:3.0,df:'분기배당',isDv:true},
   {n:'카카오',s:'035720.KS',dy:0,df:'없음',isDv:false},
   {n:'NAVER',s:'035420.KS',dy:0.3,df:'연배당',isDv:true},
+  {n:'삼성SDI',s:'006400.KS',dy:0.5,df:'연배당',isDv:true},
+  {n:'LG화학',s:'051910.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'현대모비스',s:'012330.KS',dy:2.5,df:'분기배당',isDv:true},
+  {n:'SK이노베이션',s:'096770.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'LG전자',s:'066570.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'삼성물산',s:'028260.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'HD현대',s:'267250.KS',dy:2.0,df:'분기배당',isDv:true},
+  {n:'두산에너빌리티',s:'034020.KS',dy:0,df:'없음',isDv:false},
+  {n:'롯데케미칼',s:'011170.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'고려아연',s:'010130.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'SK',s:'034730.KS',dy:2.5,df:'분기배당',isDv:true},
+  {n:'CJ제일제당',s:'097950.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'한국전력',s:'015760.KS',dy:0,df:'없음',isDv:false},
+  {n:'삼성생명',s:'032830.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'삼성화재',s:'000810.KS',dy:4.5,df:'연배당',isDv:true},
+  {n:'현대건설',s:'000720.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'GS건설',s:'006360.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'대우건설',s:'047040.KS',dy:3.5,df:'연배당',isDv:true},
+  {n:'한화에어로스페이스',s:'012450.KS',dy:0.5,df:'연배당',isDv:true},
+  {n:'한화',s:'000880.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'두산로보틱스',s:'454910.KS',dy:0,df:'없음',isDv:false},
+  {n:'에코프로비엠',s:'247540.KQ',dy:0,df:'없음',isDv:false},
+  {n:'에코프로',s:'086520.KQ',dy:0,df:'없음',isDv:false},
+  {n:'포스코퓨처엠',s:'003670.KS',dy:0.5,df:'연배당',isDv:true},
+  {n:'엘앤에프',s:'066970.KQ',dy:0,df:'없음',isDv:false},
+  {n:'크래프톤',s:'259960.KS',dy:0,df:'없음',isDv:false},
+  {n:'카카오뱅크',s:'323410.KS',dy:0.5,df:'연배당',isDv:true},
+  {n:'카카오페이',s:'377300.KS',dy:0,df:'없음',isDv:false},
+  // ── 금융 ──
   {n:'KB금융',s:'105560.KS',dy:5.0,df:'분기배당',isDv:true},
   {n:'신한지주',s:'055550.KS',dy:4.5,df:'분기배당',isDv:true},
   {n:'하나금융지주',s:'086790.KS',dy:5.5,df:'분기배당',isDv:true},
   {n:'우리금융지주',s:'316140.KS',dy:6.5,df:'분기배당',isDv:true},
   {n:'메리츠금융지주',s:'138040.KS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'DB손해보험',s:'005830.KS',dy:4.5,df:'연배당',isDv:true},
+  {n:'현대해상',s:'001450.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'미래에셋증권',s:'006800.KS',dy:3.5,df:'연배당',isDv:true},
+  {n:'한국투자증권',s:'071050.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'키움증권',s:'039490.KQ',dy:2.5,df:'연배당',isDv:true},
+  {n:'NH투자증권',s:'005940.KS',dy:5.0,df:'연배당',isDv:true},
+  {n:'삼성증권',s:'016360.KS',dy:5.5,df:'연배당',isDv:true},
+  {n:'대신증권',s:'003540.KS',dy:5.0,df:'연배당',isDv:true},
+  // ── 통신/미디어 ──
   {n:'KT&G',s:'033780.KS',dy:5.5,df:'분기배당',isDv:true},
   {n:'SK텔레콤',s:'017670.KS',dy:6.0,df:'분기배당',isDv:true},
   {n:'KT',s:'030200.KS',dy:5.0,df:'분기배당',isDv:true},
-  // ── KODEX (삼성자산운용) ──
+  {n:'LG유플러스',s:'032640.KS',dy:6.0,df:'분기배당',isDv:true},
+  // ── 자동차/타이어 ──
+  {n:'한국타이어앤테크놀로지',s:'161390.KS',dy:3.0,df:'분기배당',isDv:true},
+  {n:'금호타이어',s:'073240.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'현대위아',s:'011210.KS',dy:2.0,df:'분기배당',isDv:true},
+  {n:'현대트랜시스',s:'195870.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'만도',s:'204320.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'HL만도',s:'204320.KS',dy:1.5,df:'연배당',isDv:true},
+  // ── 게임/IT ──
+  {n:'넥슨게임즈',s:'225570.KQ',dy:0,df:'없음',isDv:false},
+  {n:'엔씨소프트',s:'036570.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'넷마블',s:'251270.KS',dy:0,df:'없음',isDv:false},
+  {n:'펄어비스',s:'263750.KQ',dy:0,df:'없음',isDv:false},
+  {n:'카카오게임즈',s:'293490.KQ',dy:0,df:'없음',isDv:false},
+  {n:'NHN',s:'181710.KQ',dy:0,df:'없음',isDv:false},
+  {n:'컴투스',s:'078340.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'게임빌',s:'063080.KQ',dy:0,df:'없음',isDv:false},
+  // ── 반도체/전자 ──
+  {n:'SK스퀘어',s:'402340.KS',dy:0,df:'없음',isDv:false},
+  {n:'삼성전기',s:'009150.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'LG이노텍',s:'011070.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'DB하이텍',s:'000990.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'원익IPS',s:'240810.KQ',dy:0.5,df:'연배당',isDv:true},
+  {n:'HPSP',s:'403870.KQ',dy:0,df:'없음',isDv:false},
+  {n:'주성엔지니어링',s:'036930.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'테크윙',s:'089030.KQ',dy:1.0,df:'연배당',isDv:true},
+  // ── 바이오/제약 ──
+  {n:'삼성바이오에피스',s:'207940.KS',dy:0,df:'없음',isDv:false},
+  {n:'한미약품',s:'128940.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'유한양행',s:'000100.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'종근당',s:'185750.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'동아에스티',s:'170900.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'셀트리온헬스케어',s:'091990.KQ',dy:0,df:'없음',isDv:false},
+  {n:'HLB',s:'028300.KQ',dy:0,df:'없음',isDv:false},
+  {n:'알테오젠',s:'196170.KQ',dy:0,df:'없음',isDv:false},
+  {n:'리가켐바이오',s:'141080.KQ',dy:0,df:'없음',isDv:false},
+  {n:'보령',s:'003850.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'광동제약',s:'009290.KS',dy:1.5,df:'연배당',isDv:true},
+  // ── 소비재/유통 ──
+  {n:'삼성물산',s:'028260.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'롯데쇼핑',s:'023530.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'이마트',s:'139480.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'BGF리테일',s:'282330.KS',dy:5.0,df:'연배당',isDv:true},
+  {n:'GS리테일',s:'007070.KS',dy:3.5,df:'연배당',isDv:true},
+  {n:'현대백화점',s:'069960.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'신세계',s:'004170.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'CJ대한통운',s:'000120.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'오리온',s:'271560.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'농심',s:'004370.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'빙그레',s:'005180.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'하이트진로',s:'000080.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'CJ',s:'001040.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'롯데지주',s:'004990.KS',dy:2.0,df:'연배당',isDv:true},
+  // ── 에너지/화학 ──
+  {n:'SK에너지',s:'096770.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'S-Oil',s:'010950.KS',dy:5.0,df:'분기배당',isDv:true},
+  {n:'GS',s:'078930.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'롯데케미칼',s:'011170.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'금호석유',s:'011780.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'OCI홀딩스',s:'010060.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'한화솔루션',s:'009830.KS',dy:1.0,df:'연배당',isDv:true},
+  // ── 철강/소재 ──
+  {n:'POSCO홀딩스',s:'005490.KS',dy:3.0,df:'분기배당',isDv:true},
+  {n:'현대제철',s:'004020.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'동국제강',s:'460860.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'세아베스틸지주',s:'001430.KS',dy:4.5,df:'연배당',isDv:true},
+  {n:'고려아연',s:'010130.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'풍산',s:'103140.KS',dy:3.5,df:'연배당',isDv:true},
+  // ── 건설/부동산 ──
+  {n:'현대건설',s:'000720.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'GS건설',s:'006360.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'대우건설',s:'047040.KS',dy:3.5,df:'연배당',isDv:true},
+  {n:'DL이앤씨',s:'375500.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'HDC현대산업개발',s:'294870.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'태영건설',s:'009410.KS',dy:0,df:'없음',isDv:false},
+  // ── 해운/조선/항공 ──
+  {n:'HMM',s:'011200.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'HD현대중공업',s:'329180.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'삼성중공업',s:'010140.KS',dy:0,df:'없음',isDv:false},
+  {n:'한화오션',s:'042660.KS',dy:0,df:'없음',isDv:false},
+  {n:'대한항공',s:'003490.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'아시아나항공',s:'020560.KS',dy:0,df:'없음',isDv:false},
+  {n:'제주항공',s:'089590.KQ',dy:0,df:'없음',isDv:false},
+  // ── KOSDAQ 주요 종목 ──
+  {n:'셀트리온제약',s:'068760.KQ',dy:0,df:'없음',isDv:false},
+  {n:'씨젠',s:'096530.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'스튜디오드래곤',s:'253450.KQ',dy:0,df:'없음',isDv:false},
+  {n:'카카오스타일',s:'348030.KQ',dy:0,df:'없음',isDv:false},
+  {n:'레인보우로보틱스',s:'277810.KQ',dy:0,df:'없음',isDv:false},
+  {n:'두산테스나',s:'131970.KQ',dy:0,df:'없음',isDv:false},
+  {n:'SK바이오사이언스',s:'302440.KS',dy:0,df:'없음',isDv:false},
+  {n:'제넥신',s:'095700.KQ',dy:0,df:'없음',isDv:false},
+  {n:'바이오니아',s:'064550.KQ',dy:0,df:'없음',isDv:false},
+  {n:'솔브레인',s:'357780.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'리노공업',s:'058470.KQ',dy:1.5,df:'연배당',isDv:true},
+  {n:'파라다이스',s:'034230.KQ',dy:1.5,df:'연배당',isDv:true},
+  {n:'GKL',s:'114090.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'강원랜드',s:'035250.KS',dy:3.5,df:'연배당',isDv:true},
+  // ── 리츠 ──
+  {n:'롯데리츠',s:'330590.KS',dy:6.5,df:'분기배당',isDv:true},
+  {n:'SK리츠',s:'395400.KS',dy:6.0,df:'분기배당',isDv:true},
+  {n:'맥쿼리인프라',s:'088980.KS',dy:7.0,df:'반기배당',isDv:true},
+  {n:'ESR켄달스퀘어리츠',s:'365550.KS',dy:6.5,df:'분기배당',isDv:true},
+  {n:'코람코라이프인프라리츠',s:'417310.KS',dy:6.0,df:'분기배당',isDv:true},
+  {n:'제이알글로벌리츠',s:'348950.KS',dy:7.0,df:'분기배당',isDv:true},
+  {n:'신한알파리츠',s:'293940.KS',dy:6.5,df:'분기배당',isDv:true},
+  {n:'디앤디플랫폼리츠',s:'402340.KS',dy:6.0,df:'분기배당',isDv:true},
+
+  // ── KODEX ETF (삼성자산운용) ──
   {n:'KODEX 200',s:'069500.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'KODEX 200TR',s:'278530.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 코스닥150',s:'229200.KQ',dy:0.5,df:'분기배당',isDv:true},
+  {n:'KODEX 코스닥150레버리지',s:'233740.KQ',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 레버리지',s:'122630.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 인버스',s:'114800.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 200선물인버스2X',s:'252670.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 삼성그룹',s:'102960.KS',dy:1.0,df:'분기배당',isDv:true},
+  {n:'KODEX 반도체',s:'091160.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'KODEX 2차전지산업',s:'305720.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 바이오',s:'244580.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 헬스케어',s:'266410.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX IT',s:'098560.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'KODEX 금융',s:'139270.KS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'KODEX 은행',s:'091170.KS',dy:4.0,df:'분기배당',isDv:true},
+  {n:'KODEX 보험',s:'140710.KS',dy:3.0,df:'분기배당',isDv:true},
+  {n:'KODEX 에너지화학',s:'117460.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'KODEX 철강',s:'117680.KS',dy:2.0,df:'분기배당',isDv:true},
+  {n:'KODEX 건설',s:'117700.KS',dy:2.0,df:'분기배당',isDv:true},
+  {n:'KODEX 자동차',s:'091180.KS',dy:2.0,df:'분기배당',isDv:true},
+  {n:'KODEX 운송',s:'140700.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'KODEX 미디어&엔터테인먼트',s:'266360.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 게임산업',s:'364970.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX AI반도체핵심장비',s:'425040.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX AI전력핵심설비',s:'468380.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 국고채3년',s:'114820.KS',dy:2.5,df:'분기배당',isDv:true},
+  {n:'KODEX 국고채10년',s:'273130.KS',dy:2.8,df:'분기배당',isDv:true},
+  {n:'KODEX 단기채권PLUS',s:'153130.KS',dy:3.5,df:'월배당',isDv:true},
+  {n:'KODEX 종합채권(AA-이상)액티브',s:'273260.KS',dy:3.0,df:'월배당',isDv:true},
+  {n:'KODEX 회사채플러스',s:'332500.KS',dy:3.5,df:'월배당',isDv:true},
+  {n:'KODEX 미국채울트라30년선물(H)',s:'304660.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 미국채10년선물',s:'308620.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 달러선물',s:'261240.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 골드선물(H)',s:'132030.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX WTI원유선물(H)',s:'261220.KS',dy:0,df:'없음',isDv:false},
   {n:'KODEX 미국S&P500',s:'379800.KS',dy:1.2,df:'분기배당',isDv:true},
-  {n:'KODEX 미국나스닥100',s:'379810.KS',dy:0.6,df:'분기배당',isDv:true},
+  {n:'KODEX 미국S&P500TR',s:'379810.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 미국나스닥100',s:'133690.KS',dy:0.6,df:'분기배당',isDv:true},
+  {n:'KODEX 미국나스닥100TR',s:'381170.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 미국S&P500(H)',s:'219480.KS',dy:1.0,df:'분기배당',isDv:true},
+  {n:'KODEX 미국나스닥100(H)',s:'253150.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'KODEX 미국반도체MV',s:'390390.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'KODEX 미국빅테크10',s:'441680.KS',dy:0.3,df:'분기배당',isDv:true},
+  {n:'KODEX 미국AI테크TOP10',s:'472160.KS',dy:0,df:'없음',isDv:false},
   {n:'KODEX 미국배당커버드콜액티브',s:'441640.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'KODEX 미국배당다우존스',s:'489250.KS',dy:4.0,df:'월배당',isDv:true},
   {n:'KODEX 미국배당다우존스타겟커버드콜',s:'483290.KS',dy:9.0,df:'월배당',isDv:true},
   {n:'KODEX 미국나스닥100데일리커버드콜OTM',s:'494300.KS',dy:10.0,df:'월배당',isDv:true},
-  {n:'KODEX 미국S&P500데일리커버드콜OTM',s:'0005A0.KS',dy:10.0,df:'월배당',isDv:true},
-  {n:'KODEX 미국반도체',s:'390390.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'KODEX 미국S&P500데일리커버드콜OTM',s:'496040.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'KODEX 금융고배당TOP10타겟위클리커버드콜',s:'498410.KS',dy:12.0,df:'월배당',isDv:true},
   {n:'KODEX 200타겟위클리커버드콜',s:'498400.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'KODEX 고배당',s:'279530.KS',dy:4.5,df:'분기배당',isDv:true},
+  {n:'KODEX 배당가치',s:'414520.KS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'KODEX TOP10',s:'473720.KS',dy:1.0,df:'분기배당',isDv:true},
+  {n:'KODEX MSCI Korea',s:'156080.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'KODEX 일본TOPIX100',s:'241390.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'KODEX 차이나H',s:'099140.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'KODEX 차이나항셍테크',s:'371330.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 유럽선진국MSCI(H)',s:'195930.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'KODEX 인도Nifty50',s:'453810.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 베트남VN30(합성)',s:'245710.KS',dy:0,df:'없음',isDv:false},
+  {n:'KODEX 리츠부동산인프라',s:'441800.KS',dy:5.0,df:'분기배당',isDv:true},
   // ── TIGER (미래에셋자산운용) ──
+  {n:'TIGER 200',s:'102110.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'TIGER 코스닥150',s:'233160.KQ',dy:0.5,df:'분기배당',isDv:true},
+  {n:'TIGER 레버리지',s:'123320.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 인버스',s:'143460.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 200선물인버스2X',s:'176950.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 반도체',s:'091230.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'TIGER 2차전지테마',s:'305540.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 바이오TOP10',s:'395160.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 헬스케어',s:'143860.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 은행',s:'091220.KS',dy:4.5,df:'분기배당',isDv:true},
+  {n:'TIGER 200금융',s:'139260.KS',dy:4.0,df:'분기배당',isDv:true},
+  {n:'TIGER 200에너지화학',s:'139250.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'TIGER 200철강소재',s:'139220.KS',dy:2.0,df:'분기배당',isDv:true},
+  {n:'TIGER 200건설',s:'139230.KS',dy:2.0,df:'분기배당',isDv:true},
+  {n:'TIGER 200IT',s:'139240.KS',dy:0.5,df:'분기배당',isDv:true},
   {n:'TIGER 미국S&P500',s:'360750.KS',dy:1.2,df:'분기배당',isDv:true},
+  {n:'TIGER 미국S&P500TR',s:'448290.KS',dy:0,df:'없음',isDv:false},
   {n:'TIGER 미국나스닥100',s:'133690.KS',dy:0.6,df:'분기배당',isDv:true},
+  {n:'TIGER 미국나스닥100TR',s:'396500.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 미국S&P500(H)',s:'143850.KS',dy:1.0,df:'분기배당',isDv:true},
+  {n:'TIGER 미국나스닥100(H)',s:'195980.KS',dy:0.5,df:'분기배당',isDv:true},
   {n:'TIGER 미국배당다우존스',s:'458730.KS',dy:4.0,df:'월배당',isDv:true},
-  {n:'TIGER 미국나스닥100커버드콜(합성)',s:'441680.KS',dy:10.0,df:'월배당',isDv:true},
-  {n:'TIGER 미국S&P500타겟데일리커버드콜',s:'482730.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'TIGER 미국배당+3%프리미엄다우존스',s:'476550.KS',dy:7.0,df:'월배당',isDv:true},
+  {n:'TIGER 미국배당다우존스타겟데일리커버드콜',s:'497060.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'TIGER 미국나스닥100타겟데일리커버드콜',s:'486290.KS',dy:11.0,df:'월배당',isDv:true},
+  {n:'TIGER 미국S&P500타겟데일리커버드콜',s:'482730.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'TIGER 배당커버드콜액티브',s:'472150.KS',dy:10.0,df:'월배당',isDv:true},
-  {n:'TIGER 미국배당다우존스타겟데일리커버드콜',s:'0008S0.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'TIGER 미국나스닥100커버드콜(합성)',s:'441680.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'TIGER 미국AI빅테크10',s:'481080.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 미국테크TOP10INDXX',s:'381170.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 미국반도체MV',s:'381180.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'TIGER Fn고배당',s:'292150.KS',dy:5.0,df:'분기배당',isDv:true},
+  {n:'TIGER 우량가치',s:'182480.KS',dy:2.5,df:'분기배당',isDv:true},
+  {n:'TIGER 배당성장',s:'302440.KS',dy:3.0,df:'분기배당',isDv:true},
+  {n:'TIGER 코리아밸류업',s:'475080.KS',dy:3.0,df:'분기배당',isDv:true},
+  {n:'TIGER 국채3년',s:'114260.KS',dy:2.5,df:'분기배당',isDv:true},
+  {n:'TIGER 국채10년',s:'148070.KS',dy:2.8,df:'분기배당',isDv:true},
+  {n:'TIGER 미국채30년스트립액티브(합성H)',s:'452340.KS',dy:5.0,df:'월배당',isDv:true},
+  {n:'TIGER 단기통안채',s:'157450.KS',dy:3.5,df:'월배당',isDv:true},
+  {n:'TIGER 차이나CSI300',s:'168580.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'TIGER 일본니케이225',s:'241020.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'TIGER 인도니프티50',s:'453810.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 베트남VN30(합성)',s:'245710.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIGER 글로벌리츠부동산(합성H)',s:'182480.KS',dy:4.0,df:'분기배당',isDv:true},
   // ── ACE (한국투자신탁운용) ──
+  {n:'ACE 200',s:'273130.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'ACE 코스닥150',s:'232080.KQ',dy:0.5,df:'분기배당',isDv:true},
+  {n:'ACE 레버리지',s:'243890.KS',dy:0,df:'없음',isDv:false},
   {n:'ACE 미국S&P500',s:'360200.KS',dy:1.2,df:'분기배당',isDv:true},
+  {n:'ACE 미국S&P500(H)',s:'426410.KS',dy:1.0,df:'분기배당',isDv:true},
   {n:'ACE 미국나스닥100',s:'367380.KS',dy:0.6,df:'분기배당',isDv:true},
+  {n:'ACE 미국나스닥100(H)',s:'409820.KS',dy:0.5,df:'분기배당',isDv:true},
   {n:'ACE 미국배당다우존스',s:'402970.KS',dy:4.0,df:'월배당',isDv:true},
-  {n:'ACE 미국배당퀄리티+커버드콜액티브',s:'0049M0.KS',dy:9.0,df:'월배당',isDv:true},
-  // ── RISE (KB자산운용) — 코드 출처: RISE ETF 공식 / FunETF ──
+  {n:'ACE 미국배당다우존스타겟커버드콜',s:'480130.KS',dy:9.0,df:'월배당',isDv:true},
+  {n:'ACE 미국나스닥100데일리타겟커버드콜(합성)',s:'483920.KS',dy:11.0,df:'월배당',isDv:true},
+  {n:'ACE 미국S&P500데일리타겟커버드콜(합성)',s:'487290.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'ACE 미국배당퀄리티+커버드콜액티브',s:'494960.KS',dy:9.0,df:'월배당',isDv:true},
+  {n:'ACE KRX금융고배당TOP10타겟위클리커버드콜',s:'493290.KS',dy:12.0,df:'월배당',isDv:true},
+  {n:'ACE 미국빅테크TOP7Plus',s:'468380.KS',dy:0,df:'없음',isDv:false},
+  {n:'ACE 미국반도체',s:'448290.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'ACE 미국AI반도체',s:'472400.KS',dy:0,df:'없음',isDv:false},
+  {n:'ACE KRX고배당',s:'315930.KS',dy:5.0,df:'분기배당',isDv:true},
+  {n:'ACE 배당가치리밸런싱',s:'415760.KS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'ACE 미국30년국채액티브(H)',s:'453570.KS',dy:5.0,df:'월배당',isDv:true},
+  {n:'ACE 미국채30년커버드콜(H)',s:'464600.KS',dy:8.0,df:'월배당',isDv:true},
+  {n:'ACE 미국고배당S&P',s:'458850.KS',dy:4.5,df:'월배당',isDv:true},
+  {n:'ACE 일본니케이225(H)',s:'396520.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'ACE 인도시장대표BSE센섹스(H)',s:'453860.KS',dy:0,df:'없음',isDv:false},
+  // ── RISE (KB자산운용) ──
+  {n:'RISE 200',s:'234590.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'RISE 코스닥150',s:'270810.KQ',dy:0.5,df:'분기배당',isDv:true},
   {n:'RISE 미국S&P500',s:'379780.KS',dy:1.2,df:'분기배당',isDv:true},
-  {n:'RISE 미국나스닥100',s:'368590.KS',dy:0.6,df:'분기배당',isDv:true},
   {n:'RISE 미국S&P500(H)',s:'422160.KS',dy:1.2,df:'분기배당',isDv:true},
+  {n:'RISE 미국나스닥100',s:'368590.KS',dy:0.6,df:'분기배당',isDv:true},
+  {n:'RISE 미국나스닥100(H)',s:'414800.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'RISE 미국배당100',s:'400590.KS',dy:7.0,df:'월배당',isDv:true},
   {n:'RISE 미국배당100데일리고정커버드콜',s:'490600.KS',dy:12.0,df:'월배당',isDv:true},
   {n:'RISE 미국테크100데일리고정커버드콜',s:'491620.KS',dy:11.0,df:'월배당',isDv:true},
   {n:'RISE 미국AI밸류체인데일리고정커버드콜',s:'490590.KS',dy:12.0,df:'월배당',isDv:true},
@@ -440,34 +721,676 @@ const SEARCH_DB=[
   {n:'RISE 미국S&P배당킹',s:'476840.KS',dy:3.5,df:'분기배당',isDv:true},
   {n:'RISE 코리아금융고배당',s:'488260.KS',dy:6.0,df:'월배당',isDv:true},
   {n:'RISE 대형고배당10TR',s:'400580.KS',dy:5.0,df:'분기배당',isDv:true},
-  {n:'RISE 미국배당100',s:'400590.KS',dy:7.0,df:'월배당',isDv:true},
   {n:'RISE 고배당',s:'211210.KS',dy:5.0,df:'분기배당',isDv:true},
-  {n:'RISE KQ고배당',s:'261220.KQ',dy:4.0,df:'분기배당',isDv:true},
-  {n:'RISE 중소형고배당',s:'279530.KS',dy:4.0,df:'분기배당',isDv:true},
-  {n:'RISE 코스닥150',s:'270810.KQ',dy:0.5,df:'분기배당',isDv:true},
-  {n:'RISE 200',s:'234590.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'RISE KQ고배당',s:'332500.KQ',dy:4.0,df:'분기배당',isDv:true},
+  {n:'RISE 일본니케이225(H)',s:'278530.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'RISE 미국반도체',s:'453550.KS',dy:0.5,df:'분기배당',isDv:true},
   // ── SOL (신한자산운용) ──
   {n:'SOL 미국배당다우존스',s:'446720.KS',dy:4.0,df:'월배당',isDv:true},
   {n:'SOL 미국배당다우존스(H)',s:'452360.KS',dy:4.0,df:'월배당',isDv:true},
-  // ── 미국 ETF ──
+  {n:'SOL 미국배당다우존스타겟데일리커버드콜',s:'495600.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'SOL 미국나스닥100데일리커버드콜(합성)',s:'480730.KS',dy:11.0,df:'월배당',isDv:true},
+  {n:'SOL 미국S&P500',s:'438905.KS',dy:1.2,df:'분기배당',isDv:true},
+  {n:'SOL 미국나스닥100',s:'438900.KS',dy:0.6,df:'분기배당',isDv:true},
+  {n:'SOL 금융지주플러스고배당',s:'466940.KS',dy:6.0,df:'월배당',isDv:true},
+  {n:'SOL 한국형글로벌반도체액티브',s:'473720.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'SOL 미국AI소프트웨어',s:'479880.KS',dy:0,df:'없음',isDv:false},
+  // ── HANARO (NH아문디자산운용) ──
+  {n:'HANARO 200',s:'293180.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'HANARO 고배당',s:'322410.KS',dy:5.0,df:'분기배당',isDv:true},
+  {n:'HANARO 미국배당다우존스',s:'426610.KS',dy:4.0,df:'월배당',isDv:true},
+  {n:'HANARO 미국S&P500',s:'448540.KS',dy:1.2,df:'분기배당',isDv:true},
+  {n:'HANARO 미국나스닥100',s:'448550.KS',dy:0.6,df:'분기배당',isDv:true},
+  {n:'HANARO 미국배당커버드콜액티브',s:'483450.KS',dy:9.0,df:'월배당',isDv:true},
+  {n:'HANARO 글로벌생성형AI액티브',s:'462900.KS',dy:0,df:'없음',isDv:false},
+  // ── KBSTAR (KB자산운용 구브랜드) ──
+  {n:'KBSTAR 200',s:'148020.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'KBSTAR 고배당',s:'266160.KS',dy:5.0,df:'분기배당',isDv:true},
+  {n:'KBSTAR 미국S&P500',s:'360140.KS',dy:1.2,df:'분기배당',isDv:true},
+  {n:'KBSTAR 미국나스닥100',s:'368560.KS',dy:0.6,df:'분기배당',isDv:true},
+  // ── ARIRANG (한화자산운용) ──
+  {n:'ARIRANG 200',s:'152100.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'ARIRANG 고배당주',s:'161510.KS',dy:5.0,df:'분기배당',isDv:true},
+  {n:'ARIRANG 미국S&P500(H)',s:'269540.KS',dy:1.0,df:'분기배당',isDv:true},
+  {n:'ARIRANG 미국나스닥기술주',s:'304940.KS',dy:0.5,df:'분기배당',isDv:true},
+  {n:'ARIRANG 미국배당주간채권혼합액티브',s:'442580.KS',dy:5.0,df:'월배당',isDv:true},
+  // ── TIMEFOLIO (타임폴리오자산운용) ──
+  {n:'TIMEFOLIO Korea플러스배당액티브',s:'441640.KS',dy:6.0,df:'월배당',isDv:true},
+  {n:'TIMEFOLIO 미국나스닥100액티브',s:'441650.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIMEFOLIO 미국S&P500액티브',s:'448530.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIMEFOLIO 글로벌AI인공지능액티브',s:'462040.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIMEFOLIO 글로벌온디바이스AI액티브',s:'472840.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIMEFOLIO 미국배당커버드콜액티브',s:'476720.KS',dy:9.0,df:'월배당',isDv:true},
+  {n:'TIMEFOLIO 미국채커버드콜액티브(H)',s:'481350.KS',dy:8.0,df:'월배당',isDv:true},
+  {n:'TIMEFOLIO 차이나본토A주액티브',s:'448520.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIMEFOLIO 글로벌반도체액티브',s:'462050.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIMEFOLIO 바이오액티브',s:'430960.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIMEFOLIO 글로벌그린뉴딜액티브',s:'430950.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIMEFOLIO TDF2050액티브',s:'438900.KS',dy:0,df:'없음',isDv:false},
+  {n:'TIMEFOLIO 국내장기채권액티브',s:'438910.KS',dy:3.0,df:'월배당',isDv:true},
+  // ── PLUS (우리자산운용) ──
+  {n:'PLUS 고배당주',s:'322000.KS',dy:5.0,df:'분기배당',isDv:true},
+  {n:'PLUS 200',s:'261220.KS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'PLUS 미국배당S&P',s:'453610.KS',dy:4.0,df:'월배당',isDv:true},
+  // ── 미국 ETF - 배당/커버드콜 ──
   {n:'JEPQ',s:'JEPQ',dy:12.5,df:'월배당',isDv:true},
   {n:'JEPI',s:'JEPI',dy:8.0,df:'월배당',isDv:true},
   {n:'SCHD',s:'SCHD',dy:3.5,df:'분기배당',isDv:true},
-  {n:'SPY',s:'SPY',dy:1.3,df:'분기배당',isDv:true},
-  {n:'QQQ',s:'QQQ',dy:0.6,df:'분기배당',isDv:true},
-  {n:'VTI',s:'VTI',dy:1.3,df:'분기배당',isDv:true},
-  {n:'VYM',s:'VYM',dy:2.9,df:'분기배당',isDv:true},
   {n:'QYLD',s:'QYLD',dy:12.0,df:'월배당',isDv:true},
   {n:'RYLD',s:'RYLD',dy:11.5,df:'월배당',isDv:true},
   {n:'XYLD',s:'XYLD',dy:9.5,df:'월배당',isDv:true},
   {n:'DIVO',s:'DIVO',dy:5.0,df:'월배당',isDv:true},
+  {n:'GPIQ',s:'GPIQ',dy:12.0,df:'월배당',isDv:true},
+  {n:'SPYI',s:'SPYI',dy:10.0,df:'월배당',isDv:true},
+  {n:'QQQI',s:'QQQI',dy:12.0,df:'월배당',isDv:true},
+  {n:'FEPI',s:'FEPI',dy:25.0,df:'월배당',isDv:true},
+  {n:'CONY',s:'CONY',dy:60.0,df:'월배당',isDv:true},
+  {n:'MSFO',s:'MSFO',dy:30.0,df:'월배당',isDv:true},
+  {n:'NVDY',s:'NVDY',dy:60.0,df:'월배당',isDv:true},
+  {n:'TSLY',s:'TSLY',dy:60.0,df:'월배당',isDv:true},
+  {n:'AMZY',s:'AMZY',dy:30.0,df:'월배당',isDv:true},
+  {n:'GOOGY',s:'GOOGY',dy:20.0,df:'월배당',isDv:true},
+  {n:'MSTY',s:'MSTY',dy:80.0,df:'월배당',isDv:true},
+  {n:'PLTY',s:'PLTY',dy:60.0,df:'월배당',isDv:true},
+  {n:'YMAX',s:'YMAX',dy:50.0,df:'월배당',isDv:true},
+  {n:'YMAG',s:'YMAG',dy:40.0,df:'월배당',isDv:true},
+  {n:'KLIP',s:'KLIP',dy:90.0,df:'월배당',isDv:true},
+  // ── 미국 ETF - 지수 ──
+  {n:'SPY',s:'SPY',dy:1.3,df:'분기배당',isDv:true},
+  {n:'QQQ',s:'QQQ',dy:0.6,df:'분기배당',isDv:true},
+  {n:'VOO',s:'VOO',dy:1.3,df:'분기배당',isDv:true},
+  {n:'VTI',s:'VTI',dy:1.3,df:'분기배당',isDv:true},
+  {n:'IVV',s:'IVV',dy:1.3,df:'분기배당',isDv:true},
+  {n:'VYM',s:'VYM',dy:2.9,df:'분기배당',isDv:true},
+  {n:'DGRO',s:'DGRO',dy:2.3,df:'분기배당',isDv:true},
+  {n:'DVY',s:'DVY',dy:4.5,df:'분기배당',isDv:true},
+  {n:'HDV',s:'HDV',dy:4.0,df:'분기배당',isDv:true},
+  {n:'SPHD',s:'SPHD',dy:5.0,df:'월배당',isDv:true},
+  {n:'NOBL',s:'NOBL',dy:2.0,df:'분기배당',isDv:true},
+  {n:'SDY',s:'SDY',dy:2.5,df:'분기배당',isDv:true},
+  {n:'SPYD',s:'SPYD',dy:4.5,df:'분기배당',isDv:true},
+  {n:'VIG',s:'VIG',dy:1.7,df:'분기배당',isDv:true},
+  {n:'TQQQ',s:'TQQQ',dy:0,df:'없음',isDv:false},
+  {n:'SOXL',s:'SOXL',dy:0,df:'없음',isDv:false},
+  {n:'UPRO',s:'UPRO',dy:0,df:'없음',isDv:false},
+  {n:'TLT',s:'TLT',dy:3.5,df:'월배당',isDv:true},
+  {n:'HYG',s:'HYG',dy:5.5,df:'월배당',isDv:true},
+  {n:'LQD',s:'LQD',dy:3.5,df:'월배당',isDv:true},
+  {n:'GLD',s:'GLD',dy:0,df:'없음',isDv:false},
+  {n:'SLV',s:'SLV',dy:0,df:'없음',isDv:false},
+  {n:'ARKK',s:'ARKK',dy:0,df:'없음',isDv:false},
+  // ── 미국 빅테크 ──
   {n:'AAPL',s:'AAPL',dy:0.5,df:'분기배당',isDv:true},
   {n:'MSFT',s:'MSFT',dy:0.8,df:'분기배당',isDv:true},
   {n:'NVDA',s:'NVDA',dy:0.03,df:'분기배당',isDv:true},
-  {n:'TSLA',s:'TSLA',dy:0,df:'없음',isDv:false},
+  {n:'GOOGL',s:'GOOGL',dy:0.5,df:'분기배당',isDv:true},
+  {n:'GOOG',s:'GOOG',dy:0.5,df:'분기배당',isDv:true},
   {n:'AMZN',s:'AMZN',dy:0,df:'없음',isDv:false},
-  {n:'GOOGL',s:'GOOGL',dy:0,df:'없음',isDv:false},
   {n:'META',s:'META',dy:0.4,df:'분기배당',isDv:true},
+  {n:'TSLA',s:'TSLA',dy:0,df:'없음',isDv:false},
+  {n:'NFLX',s:'NFLX',dy:0,df:'없음',isDv:false},
+  {n:'AMD',s:'AMD',dy:0,df:'없음',isDv:false},
+  {n:'INTC',s:'INTC',dy:2.0,df:'분기배당',isDv:true},
+  {n:'QCOM',s:'QCOM',dy:2.5,df:'분기배당',isDv:true},
+  {n:'AVGO',s:'AVGO',dy:2.0,df:'분기배당',isDv:true},
+  {n:'ORCL',s:'ORCL',dy:1.0,df:'분기배당',isDv:true},
+  {n:'CRM',s:'CRM',dy:0,df:'없음',isDv:false},
+  {n:'ADBE',s:'ADBE',dy:0,df:'없음',isDv:false},
+  // ── 미국 금융 ──
+  {n:'JPM',s:'JPM',dy:2.5,df:'분기배당',isDv:true},
+  {n:'BAC',s:'BAC',dy:2.5,df:'분기배당',isDv:true},
+  {n:'WFC',s:'WFC',dy:2.8,df:'분기배당',isDv:true},
+  {n:'GS',s:'GS',dy:2.5,df:'분기배당',isDv:true},
+  {n:'MS',s:'MS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'V',s:'V',dy:0.8,df:'분기배당',isDv:true},
+  {n:'MA',s:'MA',dy:0.6,df:'분기배당',isDv:true},
+  {n:'BRK-B',s:'BRK-B',dy:0,df:'없음',isDv:false},
+  {n:'AXP',s:'AXP',dy:1.5,df:'분기배당',isDv:true},
+  // ── 미국 배당주 ──
+  {n:'JNJ',s:'JNJ',dy:3.0,df:'분기배당',isDv:true},
+  {n:'PG',s:'PG',dy:2.5,df:'분기배당',isDv:true},
+  {n:'KO',s:'KO',dy:3.0,df:'분기배당',isDv:true},
+  {n:'PEP',s:'PEP',dy:3.0,df:'분기배당',isDv:true},
+  {n:'MCD',s:'MCD',dy:2.5,df:'분기배당',isDv:true},
+  {n:'WMT',s:'WMT',dy:1.3,df:'분기배당',isDv:true},
+  {n:'CVX',s:'CVX',dy:4.0,df:'분기배당',isDv:true},
+  {n:'XOM',s:'XOM',dy:3.5,df:'분기배당',isDv:true},
+  {n:'T',s:'T',dy:6.5,df:'분기배당',isDv:true},
+  {n:'VZ',s:'VZ',dy:7.0,df:'분기배당',isDv:true},
+  {n:'MO',s:'MO',dy:9.5,df:'분기배당',isDv:true},
+  {n:'PM',s:'PM',dy:5.5,df:'분기배당',isDv:true},
+  {n:'ABBV',s:'ABBV',dy:4.0,df:'분기배당',isDv:true},
+  {n:'PFE',s:'PFE',dy:6.5,df:'분기배당',isDv:true},
+  {n:'IBM',s:'IBM',dy:4.5,df:'분기배당',isDv:true},
+  {n:'MMM',s:'MMM',dy:6.0,df:'분기배당',isDv:true},
+  {n:'CAT',s:'CAT',dy:1.5,df:'분기배당',isDv:true},
+  {n:'HON',s:'HON',dy:2.0,df:'분기배당',isDv:true},
+  {n:'RTX',s:'RTX',dy:2.5,df:'분기배당',isDv:true},
+  {n:'LMT',s:'LMT',dy:2.8,df:'분기배당',isDv:true},
+  // ── 미국 리츠 ──
+  {n:'O',s:'O',dy:5.5,df:'월배당',isDv:true},
+  {n:'MAIN',s:'MAIN',dy:6.5,df:'월배당',isDv:true},
+  {n:'STAG',s:'STAG',dy:4.5,df:'월배당',isDv:true},
+  {n:'AGNC',s:'AGNC',dy:14.0,df:'월배당',isDv:true},
+  {n:'NLY',s:'NLY',dy:14.0,df:'분기배당',isDv:true},
+  {n:'ARCC',s:'ARCC',dy:9.0,df:'분기배당',isDv:true},
+  // ── 한국 추가 KOSPI ──
+  {n:'아모레퍼시픽',s:'090430.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'LG생활건강',s:'051900.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'코웨이',s:'021240.KS',dy:4.5,df:'연배당',isDv:true},
+  {n:'F&F',s:'383220.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'한국콜마',s:'161890.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'코스맥스',s:'192820.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'LS',s:'006260.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'LS일렉트릭',s:'010120.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'효성',s:'004800.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'효성첨단소재',s:'298050.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'효성중공업',s:'298040.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'효성화학',s:'298060.KS',dy:0,df:'없음',isDv:false},
+  {n:'한국항공우주',s:'047810.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'현대로템',s:'064350.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'한화시스템',s:'272210.KS',dy:0.5,df:'연배당',isDv:true},
+  {n:'두산밥캣',s:'241560.KS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'한국가스공사',s:'036460.KS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'코오롱인더스트리',s:'120110.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'동국홀딩스',s:'001230.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'태광산업',s:'003240.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'OCI홀딩스',s:'010060.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'동진쎄미켐',s:'005290.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'KCC',s:'002380.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'LG',s:'003550.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'SK바이오팜',s:'326030.KS',dy:0,df:'없음',isDv:false},
+  {n:'SK바이오사이언스',s:'302440.KS',dy:0,df:'없음',isDv:false},
+  {n:'한미사이언스',s:'008930.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'유한양행',s:'000100.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'녹십자',s:'006280.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'대웅제약',s:'069620.KS',dy:0.5,df:'연배당',isDv:true},
+  {n:'일양약품',s:'007570.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'현대글로비스',s:'086280.KS',dy:3.0,df:'분기배당',isDv:true},
+  {n:'현대오토에버',s:'307950.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'현대엔지니어링',s:'293490.KS',dy:0,df:'없음',isDv:false},
+  {n:'포스코인터내셔널',s:'047050.KS',dy:3.0,df:'분기배당',isDv:true},
+  {n:'삼성에스디에스',s:'018260.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'삼성엔지니어링',s:'028050.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'SK네트웍스',s:'001740.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'SK가스',s:'018670.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'GS칼텍스',s:'078930.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'한진칼',s:'180640.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'한진',s:'002320.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'CJ대한통운',s:'000120.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'롯데정보통신',s:'286940.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'신세계인터내셔날',s:'031430.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'에스원',s:'012750.KS',dy:3.5,df:'연배당',isDv:true},
+  {n:'삼성SDS',s:'018260.KS',dy:2.0,df:'연배당',isDv:true},
+
+
+  {n:'쿠팡',s:'CPNG',dy:0,df:'없음',isDv:false},
+  // ── 한국 추가 KOSDAQ ──
+  {n:'한미반도체',s:'042700.KQ',dy:1.5,df:'분기배당',isDv:true},
+  {n:'ISC',s:'095340.KQ',dy:1.5,df:'분기배당',isDv:true},
+  {n:'덕산네오룩스',s:'213420.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'이오테크닉스',s:'039030.KQ',dy:1.5,df:'연배당',isDv:true},
+  {n:'클래시스',s:'214150.KQ',dy:2.0,df:'연배당',isDv:true},
+  {n:'인바디',s:'041830.KQ',dy:1.5,df:'연배당',isDv:true},
+  {n:'심텍',s:'222800.KQ',dy:1.5,df:'연배당',isDv:true},
+  {n:'두산퓨얼셀',s:'336260.KQ',dy:0,df:'없음',isDv:false},
+  {n:'레인보우로보틱스',s:'277810.KQ',dy:0,df:'없음',isDv:false},
+  {n:'SK머티리얼즈',s:'036490.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'원익IPS',s:'240810.KQ',dy:0.5,df:'연배당',isDv:true},
+  {n:'HPSP',s:'403870.KQ',dy:0,df:'없음',isDv:false},
+  {n:'주성엔지니어링',s:'036930.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'테크윙',s:'089030.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'포스코DX',s:'022100.KQ',dy:0.5,df:'연배당',isDv:true},
+  {n:'삼천당제약',s:'000250.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'동성제약',s:'002210.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'휴마시스',s:'205470.KQ',dy:0,df:'없음',isDv:false},
+  {n:'메디톡스',s:'086900.KQ',dy:0,df:'없음',isDv:false},
+  {n:'에스티팜',s:'237690.KQ',dy:0,df:'없음',isDv:false},
+  {n:'파미셀',s:'005690.KQ',dy:0,df:'없음',isDv:false},
+  {n:'오스템임플란트',s:'048260.KQ',dy:0.5,df:'연배당',isDv:true},
+  {n:'덴티움',s:'145720.KQ',dy:1.5,df:'연배당',isDv:true},
+  {n:'위메이드',s:'112040.KQ',dy:0,df:'없음',isDv:false},
+  {n:'더블유게임즈',s:'192080.KQ',dy:2.5,df:'연배당',isDv:true},
+  {n:'크래프톤',s:'259960.KS',dy:0,df:'없음',isDv:false},
+  {n:'시프트업',s:'462870.KS',dy:0,df:'없음',isDv:false},
+  // ── 미국 추가 성장주/테크 ──
+  {n:'PLTR',s:'PLTR',dy:0,df:'없음',isDv:false},
+  {n:'COIN',s:'COIN',dy:0,df:'없음',isDv:false},
+  {n:'HOOD',s:'HOOD',dy:0,df:'없음',isDv:false},
+  {n:'SOFI',s:'SOFI',dy:0,df:'없음',isDv:false},
+  {n:'AFRM',s:'AFRM',dy:0,df:'없음',isDv:false},
+  {n:'RIVN',s:'RIVN',dy:0,df:'없음',isDv:false},
+  {n:'LCID',s:'LCID',dy:0,df:'없음',isDv:false},
+  {n:'NIO',s:'NIO',dy:0,df:'없음',isDv:false},
+  {n:'XPEV',s:'XPEV',dy:0,df:'없음',isDv:false},
+  {n:'SNOW',s:'SNOW',dy:0,df:'없음',isDv:false},
+  {n:'DDOG',s:'DDOG',dy:0,df:'없음',isDv:false},
+  {n:'ZS',s:'ZS',dy:0,df:'없음',isDv:false},
+  {n:'CRWD',s:'CRWD',dy:0,df:'없음',isDv:false},
+  {n:'PANW',s:'PANW',dy:0,df:'없음',isDv:false},
+  {n:'OKTA',s:'OKTA',dy:0,df:'없음',isDv:false},
+  {n:'NET',s:'NET',dy:0,df:'없음',isDv:false},
+  {n:'PATH',s:'PATH',dy:0,df:'없음',isDv:false},
+  {n:'U',s:'U',dy:0,df:'없음',isDv:false},
+  {n:'RBLX',s:'RBLX',dy:0,df:'없음',isDv:false},
+  {n:'SPOT',s:'SPOT',dy:0,df:'없음',isDv:false},
+  {n:'SHOP',s:'SHOP',dy:0,df:'없음',isDv:false},
+  {n:'UBER',s:'UBER',dy:0,df:'없음',isDv:false},
+  {n:'LYFT',s:'LYFT',dy:0,df:'없음',isDv:false},
+  {n:'ABNB',s:'ABNB',dy:0,df:'없음',isDv:false},
+  {n:'DASH',s:'DASH',dy:0,df:'없음',isDv:false},
+  {n:'PYPL',s:'PYPL',dy:0,df:'없음',isDv:false},
+  {n:'SQ',s:'XYZ',dy:0,df:'없음',isDv:false},
+  {n:'PINS',s:'PINS',dy:0,df:'없음',isDv:false},
+  {n:'SNAP',s:'SNAP',dy:0,df:'없음',isDv:false},
+  {n:'ROKU',s:'ROKU',dy:0,df:'없음',isDv:false},
+  {n:'ZM',s:'ZM',dy:0,df:'없음',isDv:false},
+  {n:'DOCU',s:'DOCU',dy:0,df:'없음',isDv:false},
+  {n:'MSTR',s:'MSTR',dy:0,df:'없음',isDv:false},
+  {n:'SMCI',s:'SMCI',dy:0,df:'없음',isDv:false},
+  {n:'ARM',s:'ARM',dy:0,df:'없음',isDv:false},
+  {n:'ASML',s:'ASML',dy:1.0,df:'분기배당',isDv:true},
+  {n:'TSM',s:'TSM',dy:1.5,df:'분기배당',isDv:true},
+  {n:'BABA',s:'BABA',dy:0,df:'없음',isDv:false},
+  {n:'JD',s:'JD',dy:2.0,df:'연배당',isDv:true},
+  {n:'PDD',s:'PDD',dy:0,df:'없음',isDv:false},
+  {n:'BIDU',s:'BIDU',dy:0,df:'없음',isDv:false},
+  // ── 미국 추가 배당주/가치주 ──
+  {n:'HD',s:'HD',dy:2.5,df:'분기배당',isDv:true},
+  {n:'LOW',s:'LOW',dy:2.0,df:'분기배당',isDv:true},
+  {n:'TGT',s:'TGT',dy:3.5,df:'분기배당',isDv:true},
+  {n:'COST',s:'COST',dy:0.6,df:'연배당',isDv:true},
+  {n:'AMGN',s:'AMGN',dy:3.5,df:'분기배당',isDv:true},
+  {n:'GILD',s:'GILD',dy:3.5,df:'분기배당',isDv:true},
+  {n:'BMY',s:'BMY',dy:5.0,df:'분기배당',isDv:true},
+  {n:'MRK',s:'MRK',dy:3.0,df:'분기배당',isDv:true},
+  {n:'LLY',s:'LLY',dy:0.7,df:'분기배당',isDv:true},
+  {n:'UNH',s:'UNH',dy:1.5,df:'분기배당',isDv:true},
+  {n:'CVS',s:'CVS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'CI',s:'CI',dy:1.8,df:'분기배당',isDv:true},
+  {n:'GE',s:'GE',dy:0.3,df:'분기배당',isDv:true},
+  {n:'BA',s:'BA',dy:0,df:'없음',isDv:false},
+  {n:'NOC',s:'NOC',dy:1.8,df:'분기배당',isDv:true},
+  {n:'GD',s:'GD',dy:2.2,df:'분기배당',isDv:true},
+  {n:'DE',s:'DE',dy:1.5,df:'분기배당',isDv:true},
+  {n:'EMR',s:'EMR',dy:2.0,df:'분기배당',isDv:true},
+  {n:'ETN',s:'ETN',dy:1.5,df:'분기배당',isDv:true},
+  {n:'NEE',s:'NEE',dy:3.0,df:'분기배당',isDv:true},
+  {n:'DUK',s:'DUK',dy:4.0,df:'분기배당',isDv:true},
+  {n:'SO',s:'SO',dy:3.8,df:'분기배당',isDv:true},
+  {n:'D',s:'D',dy:4.5,df:'분기배당',isDv:true},
+  {n:'WPC',s:'WPC',dy:6.0,df:'분기배당',isDv:true},
+  {n:'VICI',s:'VICI',dy:5.5,df:'분기배당',isDv:true},
+  {n:'AMT',s:'AMT',dy:3.5,df:'분기배당',isDv:true},
+  {n:'CCI',s:'CCI',dy:6.5,df:'분기배당',isDv:true},
+  {n:'SBAC',s:'SBAC',dy:2.0,df:'분기배당',isDv:true},
+  {n:'DLR',s:'DLR',dy:3.5,df:'분기배당',isDv:true},
+  {n:'PSA',s:'PSA',dy:4.5,df:'분기배당',isDv:true},
+  {n:'EXR',s:'EXR',dy:4.5,df:'분기배당',isDv:true},
+  {n:'PLD',s:'PLD',dy:3.5,df:'분기배당',isDv:true},
+  {n:'SPG',s:'SPG',dy:5.5,df:'분기배당',isDv:true},
+  // ── 미국 추가 ETF ──
+  {n:'IBIT',s:'IBIT',dy:0,df:'없음',isDv:false},
+  {n:'FBTC',s:'FBTC',dy:0,df:'없음',isDv:false},
+  {n:'MSOS',s:'MSOS',dy:0,df:'없음',isDv:false},
+  {n:'BITX',s:'BITX',dy:0,df:'없음',isDv:false},
+  {n:'BITO',s:'BITO',dy:15.0,df:'월배당',isDv:true},
+  {n:'KWEB',s:'KWEB',dy:0,df:'없음',isDv:false},
+  {n:'FXI',s:'FXI',dy:2.5,df:'연배당',isDv:true},
+  {n:'EEM',s:'EEM',dy:2.5,df:'연배당',isDv:true},
+  {n:'VWO',s:'VWO',dy:3.5,df:'분기배당',isDv:true},
+  {n:'EFA',s:'EFA',dy:3.0,df:'분기배당',isDv:true},
+  {n:'IAU',s:'IAU',dy:0,df:'없음',isDv:false},
+  {n:'USO',s:'USO',dy:0,df:'없음',isDv:false},
+  {n:'XLE',s:'XLE',dy:3.5,df:'분기배당',isDv:true},
+  {n:'XLF',s:'XLF',dy:1.8,df:'분기배당',isDv:true},
+  {n:'XLK',s:'XLK',dy:0.7,df:'분기배당',isDv:true},
+  {n:'XLV',s:'XLV',dy:1.5,df:'분기배당',isDv:true},
+  {n:'SOXX',s:'SOXX',dy:0.8,df:'분기배당',isDv:true},
+  {n:'SMH',s:'SMH',dy:0.8,df:'분기배당',isDv:true},
+  {n:'BOTZ',s:'BOTZ',dy:0.5,df:'연배당',isDv:true},
+  {n:'ROBO',s:'ROBO',dy:0,df:'없음',isDv:false},
+  {n:'WCLD',s:'WCLD',dy:0,df:'없음',isDv:false},
+  {n:'CLOU',s:'CLOU',dy:0,df:'없음',isDv:false},
+  {n:'FINX',s:'FINX',dy:0,df:'없음',isDv:false},
+  {n:'ICLN',s:'ICLN',dy:1.5,df:'연배당',isDv:true},
+  {n:'TAN',s:'TAN',dy:1.5,df:'연배당',isDv:true},
+  {n:'DRIV',s:'DRIV',dy:0.8,df:'연배당',isDv:true},
+  {n:'KORU',s:'KORU',dy:0,df:'없음',isDv:false},
+  {n:'EWY',s:'EWY',dy:3.0,df:'연배당',isDv:true},
+  {n:'FLKR',s:'FLKR',dy:2.5,df:'분기배당',isDv:true},
+  // ── S&P500 추가 ──
+  {n:'MSCI',s:'MSCI',dy:1.0,df:'분기배당',isDv:true},
+  {n:'SPGI',s:'SPGI',dy:0.9,df:'분기배당',isDv:true},
+  {n:'MCO',s:'MCO',dy:0.9,df:'분기배당',isDv:true},
+  {n:'BLK',s:'BLK',dy:2.5,df:'분기배당',isDv:true},
+  {n:'SCHW',s:'SCHW',dy:1.5,df:'분기배당',isDv:true},
+  {n:'COF',s:'COF',dy:1.7,df:'분기배당',isDv:true},
+  {n:'USB',s:'USB',dy:4.5,df:'분기배당',isDv:true},
+  {n:'TFC',s:'TFC',dy:5.0,df:'분기배당',isDv:true},
+  {n:'PNC',s:'PNC',dy:4.0,df:'분기배당',isDv:true},
+  {n:'C',s:'C',dy:3.5,df:'분기배당',isDv:true},
+  {n:'FITB',s:'FITB',dy:4.0,df:'분기배당',isDv:true},
+  {n:'KEY',s:'KEY',dy:5.5,df:'분기배당',isDv:true},
+  {n:'RF',s:'RF',dy:4.5,df:'분기배당',isDv:true},
+  {n:'HBAN',s:'HBAN',dy:5.0,df:'분기배당',isDv:true},
+  {n:'CFG',s:'CFG',dy:4.5,df:'분기배당',isDv:true},
+  {n:'MTB',s:'MTB',dy:3.5,df:'분기배당',isDv:true},
+  {n:'ALLY',s:'ALLY',dy:3.5,df:'분기배당',isDv:true},
+  {n:'DFS',s:'DFS',dy:2.0,df:'분기배당',isDv:true},
+  {n:'SYF',s:'SYF',dy:2.5,df:'분기배당',isDv:true},
+  {n:'BX',s:'BX',dy:4.5,df:'분기배당',isDv:true},
+  {n:'KKR',s:'KKR',dy:1.5,df:'분기배당',isDv:true},
+  {n:'APO',s:'APO',dy:2.5,df:'분기배당',isDv:true},
+  {n:'CG',s:'CG',dy:3.5,df:'분기배당',isDv:true},
+  {n:'NDAQ',s:'NDAQ',dy:1.5,df:'분기배당',isDv:true},
+  {n:'ICE',s:'ICE',dy:1.3,df:'분기배당',isDv:true},
+  {n:'CME',s:'CME',dy:2.0,df:'분기배당',isDv:true},
+  {n:'CBOE',s:'CBOE',dy:1.3,df:'분기배당',isDv:true},
+  {n:'MET',s:'MET',dy:3.5,df:'분기배당',isDv:true},
+  {n:'PRU',s:'PRU',dy:4.5,df:'분기배당',isDv:true},
+  {n:'AFL',s:'AFL',dy:2.5,df:'분기배당',isDv:true},
+  {n:'ALL',s:'ALL',dy:2.0,df:'분기배당',isDv:true},
+  {n:'PGR',s:'PGR',dy:0.3,df:'연배당',isDv:true},
+  {n:'TRV',s:'TRV',dy:2.2,df:'분기배당',isDv:true},
+  {n:'HIG',s:'HIG',dy:2.0,df:'분기배당',isDv:true},
+  {n:'WM',s:'WM',dy:1.5,df:'분기배당',isDv:true},
+  {n:'RSG',s:'RSG',dy:1.5,df:'분기배당',isDv:true},
+  {n:'FAST',s:'FAST',dy:2.5,df:'분기배당',isDv:true},
+  {n:'GWW',s:'GWW',dy:1.0,df:'분기배당',isDv:true},
+  {n:'ROK',s:'ROK',dy:1.8,df:'분기배당',isDv:true},
+  {n:'PH',s:'PH',dy:1.2,df:'분기배당',isDv:true},
+  {n:'ITW',s:'ITW',dy:2.5,df:'분기배당',isDv:true},
+  {n:'DOV',s:'DOV',dy:1.5,df:'분기배당',isDv:true},
+  {n:'XYL',s:'XYL',dy:1.5,df:'분기배당',isDv:true},
+  {n:'AME',s:'AME',dy:0.7,df:'분기배당',isDv:true},
+  {n:'FTV',s:'FTV',dy:0.5,df:'분기배당',isDv:true},
+  {n:'SWK',s:'SWK',dy:4.0,df:'분기배당',isDv:true},
+  {n:'PNR',s:'PNR',dy:1.5,df:'분기배당',isDv:true},
+  {n:'GNRC',s:'GNRC',dy:0,df:'없음',isDv:false},
+  {n:'LIN',s:'LIN',dy:1.3,df:'분기배당',isDv:true},
+  {n:'APD',s:'APD',dy:2.8,df:'분기배당',isDv:true},
+  {n:'ECL',s:'ECL',dy:1.2,df:'분기배당',isDv:true},
+  {n:'SHW',s:'SHW',dy:1.0,df:'분기배당',isDv:true},
+  {n:'PPG',s:'PPG',dy:2.0,df:'분기배당',isDv:true},
+  {n:'NEM',s:'NEM',dy:2.5,df:'분기배당',isDv:true},
+  {n:'FCX',s:'FCX',dy:1.5,df:'분기배당',isDv:true},
+  {n:'NUE',s:'NUE',dy:1.5,df:'분기배당',isDv:true},
+  {n:'STLD',s:'STLD',dy:1.5,df:'분기배당',isDv:true},
+  {n:'RS',s:'RS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'CF',s:'CF',dy:2.0,df:'분기배당',isDv:true},
+  {n:'MOS',s:'MOS',dy:1.5,df:'분기배당',isDv:true},
+  {n:'FMC',s:'FMC',dy:4.0,df:'분기배당',isDv:true},
+  {n:'LYB',s:'LYB',dy:6.0,df:'분기배당',isDv:true},
+  {n:'DOW',s:'DOW',dy:6.5,df:'분기배당',isDv:true},
+  {n:'DD',s:'DD',dy:2.5,df:'분기배당',isDv:true},
+  {n:'CE',s:'CE',dy:1.5,df:'분기배당',isDv:true},
+  {n:'WLK',s:'WLK',dy:2.0,df:'분기배당',isDv:true},
+  {n:'ALB',s:'ALB',dy:1.5,df:'분기배당',isDv:true},
+  {n:'MPC',s:'MPC',dy:2.5,df:'분기배당',isDv:true},
+  {n:'PSX',s:'PSX',dy:3.5,df:'분기배당',isDv:true},
+  {n:'VLO',s:'VLO',dy:3.5,df:'분기배당',isDv:true},
+  {n:'HES',s:'HES',dy:1.3,df:'분기배당',isDv:true},
+  {n:'COP',s:'COP',dy:2.5,df:'분기배당',isDv:true},
+  {n:'EOG',s:'EOG',dy:3.0,df:'분기배당',isDv:true},
+  {n:'OXY',s:'OXY',dy:2.0,df:'분기배당',isDv:true},
+  {n:'PXD',s:'PXD',dy:5.0,df:'분기배당',isDv:true},
+  {n:'DVN',s:'DVN',dy:4.0,df:'분기배당',isDv:true},
+  {n:'FANG',s:'FANG',dy:3.0,df:'분기배당',isDv:true},
+  {n:'HAL',s:'HAL',dy:1.5,df:'분기배당',isDv:true},
+  {n:'SLB',s:'SLB',dy:2.5,df:'분기배당',isDv:true},
+  {n:'BKR',s:'BKR',dy:2.5,df:'분기배당',isDv:true},
+  {n:'KMI',s:'KMI',dy:6.5,df:'분기배당',isDv:true},
+  {n:'WMB',s:'WMB',dy:5.5,df:'분기배당',isDv:true},
+  {n:'OKE',s:'OKE',dy:6.0,df:'분기배당',isDv:true},
+  {n:'ET',s:'ET',dy:9.0,df:'분기배당',isDv:true},
+  {n:'MPLX',s:'MPLX',dy:9.5,df:'분기배당',isDv:true},
+  {n:'EPD',s:'EPD',dy:7.5,df:'분기배당',isDv:true},
+  {n:'MMP',s:'MMP',dy:8.5,df:'분기배당',isDv:true},
+  {n:'DG',s:'DG',dy:2.0,df:'분기배당',isDv:true},
+  {n:'DLTR',s:'DLTR',dy:0,df:'없음',isDv:false},
+  {n:'ORLY',s:'ORLY',dy:0,df:'없음',isDv:false},
+  {n:'AZO',s:'AZO',dy:0,df:'없음',isDv:false},
+  {n:'TSCO',s:'TSCO',dy:2.0,df:'분기배당',isDv:true},
+  {n:'NKE',s:'NKE',dy:1.8,df:'분기배당',isDv:true},
+  {n:'TJX',s:'TJX',dy:1.5,df:'분기배당',isDv:true},
+  {n:'ROST',s:'ROST',dy:1.2,df:'분기배당',isDv:true},
+  {n:'GPS',s:'GPS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'ANF',s:'ANF',dy:0,df:'없음',isDv:false},
+  {n:'CPRT',s:'CPRT',dy:0,df:'없음',isDv:false},
+  {n:'KR',s:'KR',dy:2.5,df:'분기배당',isDv:true},
+  {n:'SYY',s:'SYY',dy:2.8,df:'분기배당',isDv:true},
+  {n:'MKC',s:'MKC',dy:2.5,df:'분기배당',isDv:true},
+  {n:'CAG',s:'CAG',dy:4.5,df:'분기배당',isDv:true},
+  {n:'GIS',s:'GIS',dy:3.5,df:'분기배당',isDv:true},
+  {n:'K',s:'K',dy:3.5,df:'분기배당',isDv:true},
+  {n:'CPB',s:'CPB',dy:4.0,df:'분기배당',isDv:true},
+  {n:'HSY',s:'HSY',dy:3.0,df:'분기배당',isDv:true},
+  {n:'CL',s:'CL',dy:2.5,df:'분기배당',isDv:true},
+  {n:'CHD',s:'CHD',dy:1.2,df:'분기배당',isDv:true},
+  {n:'EL',s:'EL',dy:2.5,df:'분기배당',isDv:true},
+  {n:'CLX',s:'CLX',dy:3.5,df:'분기배당',isDv:true},
+  {n:'KHC',s:'KHC',dy:5.5,df:'분기배당',isDv:true},
+  {n:'STZ',s:'STZ',dy:2.0,df:'분기배당',isDv:true},
+  {n:'BUD',s:'BUD',dy:1.5,df:'반기배당',isDv:true},
+  {n:'TAP',s:'TAP',dy:3.0,df:'분기배당',isDv:true},
+  {n:'UNP',s:'UNP',dy:2.5,df:'분기배당',isDv:true},
+  {n:'CSX',s:'CSX',dy:1.5,df:'분기배당',isDv:true},
+  {n:'NSC',s:'NSC',dy:2.5,df:'분기배당',isDv:true},
+  {n:'KNX',s:'KNX',dy:1.0,df:'분기배당',isDv:true},
+  {n:'CHRW',s:'CHRW',dy:3.5,df:'분기배당',isDv:true},
+  {n:'EXPD',s:'EXPD',dy:1.5,df:'반기배당',isDv:true},
+  {n:'FDX',s:'FDX',dy:2.5,df:'분기배당',isDv:true},
+  {n:'UPS',s:'UPS',dy:4.5,df:'분기배당',isDv:true},
+  {n:'AAL',s:'AAL',dy:0,df:'없음',isDv:false},
+  {n:'UAL',s:'UAL',dy:0,df:'없음',isDv:false},
+  {n:'DAL',s:'DAL',dy:1.0,df:'분기배당',isDv:true},
+  {n:'LUV',s:'LUV',dy:2.0,df:'분기배당',isDv:true},
+  {n:'RCL',s:'RCL',dy:1.0,df:'분기배당',isDv:true},
+  {n:'CCL',s:'CCL',dy:0,df:'없음',isDv:false},
+  {n:'MAR',s:'MAR',dy:1.5,df:'분기배당',isDv:true},
+  {n:'HLT',s:'HLT',dy:0.5,df:'분기배당',isDv:true},
+  {n:'H',s:'H',dy:0.5,df:'분기배당',isDv:true},
+  {n:'WYNN',s:'WYNN',dy:1.0,df:'분기배당',isDv:true},
+  {n:'LVS',s:'LVS',dy:2.5,df:'분기배당',isDv:true},
+  {n:'MGM',s:'MGM',dy:0,df:'없음',isDv:false},
+  {n:'SBUX',s:'SBUX',dy:2.8,df:'분기배당',isDv:true},
+  {n:'YUM',s:'YUM',dy:2.0,df:'분기배당',isDv:true},
+  {n:'QSR',s:'QSR',dy:3.5,df:'분기배당',isDv:true},
+  {n:'DPZ',s:'DPZ',dy:1.5,df:'분기배당',isDv:true},
+  {n:'CMG',s:'CMG',dy:0,df:'없음',isDv:false},
+  {n:'DRI',s:'DRI',dy:3.5,df:'분기배당',isDv:true},
+  {n:'EW',s:'EW',dy:0,df:'없음',isDv:false},
+  {n:'ISRG',s:'ISRG',dy:0,df:'없음',isDv:false},
+  {n:'SYK',s:'SYK',dy:1.0,df:'분기배당',isDv:true},
+  {n:'ZBH',s:'ZBH',dy:0.8,df:'분기배당',isDv:true},
+  {n:'BSX',s:'BSX',dy:0,df:'없음',isDv:false},
+  {n:'BAX',s:'BAX',dy:3.5,df:'분기배당',isDv:true},
+  {n:'BDX',s:'BDX',dy:1.5,df:'분기배당',isDv:true},
+  {n:'TMO',s:'TMO',dy:0.3,df:'분기배당',isDv:true},
+  {n:'DHR',s:'DHR',dy:0.4,df:'분기배당',isDv:true},
+  {n:'IQV',s:'IQV',dy:0,df:'없음',isDv:false},
+  {n:'A',s:'A',dy:0.8,df:'분기배당',isDv:true},
+  {n:'MTD',s:'MTD',dy:0,df:'없음',isDv:false},
+  {n:'WAT',s:'WAT',dy:0,df:'없음',isDv:false},
+  {n:'CRL',s:'CRL',dy:0,df:'없음',isDv:false},
+  {n:'REGN',s:'REGN',dy:0,df:'없음',isDv:false},
+  {n:'VRTX',s:'VRTX',dy:0,df:'없음',isDv:false},
+  {n:'BIIB',s:'BIIB',dy:0,df:'없음',isDv:false},
+  {n:'MRNA',s:'MRNA',dy:0,df:'없음',isDv:false},
+  {n:'ILMN',s:'ILMN',dy:0,df:'없음',isDv:false},
+  {n:'ZTS',s:'ZTS',dy:0.8,df:'분기배당',isDv:true},
+  {n:'IDXX',s:'IDXX',dy:0,df:'없음',isDv:false},
+  {n:'IEX',s:'IEX',dy:1.2,df:'분기배당',isDv:true},
+  {n:'WELL',s:'WELL',dy:2.5,df:'분기배당',isDv:true},
+  {n:'PEAK',s:'PEAK',dy:5.5,df:'분기배당',isDv:true},
+  {n:'VTR',s:'VTR',dy:4.5,df:'분기배당',isDv:true},
+  {n:'ARE',s:'ARE',dy:4.5,df:'분기배당',isDv:true},
+  {n:'BXP',s:'BXP',dy:5.5,df:'분기배당',isDv:true},
+  {n:'VNO',s:'VNO',dy:4.5,df:'분기배당',isDv:true},
+  {n:'KIM',s:'KIM',dy:4.5,df:'분기배당',isDv:true},
+  {n:'REG',s:'REG',dy:4.5,df:'분기배당',isDv:true},
+  {n:'FRT',s:'FRT',dy:4.5,df:'분기배당',isDv:true},
+  {n:'AVB',s:'AVB',dy:3.5,df:'분기배당',isDv:true},
+  {n:'EQR',s:'EQR',dy:4.0,df:'분기배당',isDv:true},
+  {n:'ESS',s:'ESS',dy:4.0,df:'분기배당',isDv:true},
+  {n:'MAA',s:'MAA',dy:4.0,df:'분기배당',isDv:true},
+  {n:'UDR',s:'UDR',dy:4.5,df:'분기배당',isDv:true},
+  {n:'INVH',s:'INVH',dy:3.0,df:'분기배당',isDv:true},
+  {n:'AMH',s:'AMH',dy:2.5,df:'분기배당',isDv:true},
+  {n:'CUBE',s:'CUBE',dy:4.5,df:'분기배당',isDv:true},
+  {n:'LSI',s:'LSI',dy:4.5,df:'분기배당',isDv:true},
+  {n:'FR',s:'FR',dy:3.0,df:'분기배당',isDv:true},
+  {n:'EGP',s:'EGP',dy:2.5,df:'분기배당',isDv:true},
+  {n:'REXR',s:'REXR',dy:3.5,df:'분기배당',isDv:true},
+  {n:'COLD',s:'COLD',dy:3.5,df:'분기배당',isDv:true},
+  {n:'EQIX',s:'EQIX',dy:2.0,df:'분기배당',isDv:true},
+  {n:'GLPI',s:'GLPI',dy:6.5,df:'분기배당',isDv:true},
+  {n:'GAMING',s:'GAMING',dy:0,df:'없음',isDv:false},
+  {n:'WPC',s:'WPC',dy:6.0,df:'분기배당',isDv:true},
+  {n:'NNN',s:'NNN',dy:5.5,df:'분기배당',isDv:true},
+  {n:'ADC',s:'ADC',dy:4.5,df:'월배당',isDv:true},
+  {n:'NTST',s:'NTST',dy:4.0,df:'분기배당',isDv:true},
+  {n:'EPRT',s:'EPRT',dy:4.0,df:'분기배당',isDv:true},
+  {n:'IIPR',s:'IIPR',dy:9.0,df:'분기배당',isDv:true},
+  {n:'ITIC',s:'ITIC',dy:0,df:'없음',isDv:false},
+  {n:'AEP',s:'AEP',dy:4.0,df:'분기배당',isDv:true},
+  {n:'EXC',s:'EXC',dy:4.0,df:'분기배당',isDv:true},
+  {n:'PEG',s:'PEG',dy:3.5,df:'분기배당',isDv:true},
+  {n:'PPL',s:'PPL',dy:4.0,df:'분기배당',isDv:true},
+  {n:'WEC',s:'WEC',dy:3.5,df:'분기배당',isDv:true},
+  {n:'XEL',s:'XEL',dy:3.5,df:'분기배당',isDv:true},
+  {n:'ES',s:'ES',dy:4.0,df:'분기배당',isDv:true},
+  {n:'EIX',s:'EIX',dy:4.5,df:'분기배당',isDv:true},
+  {n:'ED',s:'ED',dy:3.5,df:'분기배당',isDv:true},
+  {n:'AWK',s:'AWK',dy:2.0,df:'분기배당',isDv:true},
+  {n:'MSCI',s:'MSCI',dy:1.0,df:'분기배당',isDv:true},
+  {n:'ACN',s:'ACN',dy:1.5,df:'반기배당',isDv:true},
+  {n:'INFY',s:'INFY',dy:2.5,df:'반기배당',isDv:true},
+  {n:'WIT',s:'WIT',dy:2.5,df:'반기배당',isDv:true},
+  {n:'SAP',s:'SAP',dy:1.5,df:'연배당',isDv:true},
+  {n:'NOW',s:'NOW',dy:0,df:'없음',isDv:false},
+  {n:'WDAY',s:'WDAY',dy:0,df:'없음',isDv:false},
+  {n:'HUBS',s:'HUBS',dy:0,df:'없음',isDv:false},
+  {n:'TWLO',s:'TWLO',dy:0,df:'없음',isDv:false},
+  {n:'ZI',s:'ZI',dy:0,df:'없음',isDv:false},
+  {n:'MNDY',s:'MNDY',dy:0,df:'없음',isDv:false},
+  {n:'GTLB',s:'GTLB',dy:0,df:'없음',isDv:false},
+  {n:'MDB',s:'MDB',dy:0,df:'없음',isDv:false},
+  {n:'ESTC',s:'ESTC',dy:0,df:'없음',isDv:false},
+  {n:'PTC',s:'PTC',dy:0,df:'없음',isDv:false},
+  {n:'CDNS',s:'CDNS',dy:0,df:'없음',isDv:false},
+  {n:'SNPS',s:'SNPS',dy:0,df:'없음',isDv:false},
+  {n:'ANSS',s:'ANSS',dy:0,df:'없음',isDv:false},
+  {n:'CTSH',s:'CTSH',dy:1.5,df:'분기배당',isDv:true},
+  {n:'EPAM',s:'EPAM',dy:0,df:'없음',isDv:false},
+  {n:'FFIV',s:'FFIV',dy:3.0,df:'분기배당',isDv:true},
+  {n:'JNPR',s:'JNPR',dy:3.5,df:'분기배당',isDv:true},
+  {n:'HPE',s:'HPE',dy:3.5,df:'분기배당',isDv:true},
+  {n:'HPQ',s:'HPQ',dy:3.5,df:'분기배당',isDv:true},
+  {n:'DELL',s:'DELL',dy:1.5,df:'분기배당',isDv:true},
+  {n:'STX',s:'STX',dy:3.5,df:'분기배당',isDv:true},
+  {n:'WDC',s:'WDC',dy:0,df:'없음',isDv:false},
+  {n:'NTAP',s:'NTAP',dy:3.0,df:'분기배당',isDv:true},
+  {n:'PSTG',s:'PSTG',dy:0,df:'없음',isDv:false},
+  {n:'MU',s:'MU',dy:0.5,df:'분기배당',isDv:true},
+  {n:'MCHP',s:'MCHP',dy:3.5,df:'분기배당',isDv:true},
+  {n:'ADI',s:'ADI',dy:2.0,df:'분기배당',isDv:true},
+  {n:'MXIM',s:'MXIM',dy:2.0,df:'분기배당',isDv:true},
+  {n:'AMAT',s:'AMAT',dy:1.0,df:'분기배당',isDv:true},
+  {n:'LRCX',s:'LRCX',dy:1.5,df:'분기배당',isDv:true},
+  {n:'KLAC',s:'KLAC',dy:1.5,df:'분기배당',isDv:true},
+  {n:'ONTO',s:'ONTO',dy:0,df:'없음',isDv:false},
+  {n:'TER',s:'TER',dy:0.5,df:'분기배당',isDv:true},
+  {n:'COHR',s:'COHR',dy:0,df:'없음',isDv:false},
+  {n:'VNET',s:'VNET',dy:0,df:'없음',isDv:false},
+  {n:'SE',s:'SE',dy:0,df:'없음',isDv:false},
+  {n:'GRAB',s:'GRAB',dy:0,df:'없음',isDv:false},
+  {n:'GOTO',s:'GOTO',dy:0,df:'없음',isDv:false},
+  {n:'CPNG',s:'CPNG',dy:0,df:'없음',isDv:false},
+  // ── 한국 KOSPI 추가 ──
+  {n:'SK스퀘어',s:'402340.KS',dy:0,df:'없음',isDv:false},
+  {n:'SK바이오팜',s:'326030.KS',dy:0,df:'없음',isDv:false},
+  {n:'SKC',s:'011790.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'SK케미칼',s:'285130.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'SK렌터카',s:'068400.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'롯데칠성',s:'005300.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'롯데푸드',s:'002270.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'풀무원',s:'017810.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'삼양식품',s:'003230.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'대상',s:'001680.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'한국금융지주',s:'071050.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'교보증권',s:'030610.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'부국증권',s:'001270.KS',dy:3.5,df:'연배당',isDv:true},
+  {n:'한양증권',s:'001750.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'현대증권',s:'003450.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'DB금융투자',s:'016610.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'흥국화재',s:'000540.KS',dy:3.5,df:'연배당',isDv:true},
+  {n:'롯데손해보험',s:'000400.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'현대차증권',s:'001500.KS',dy:4.0,df:'연배당',isDv:true},
+  {n:'두산',s:'000150.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'두산중공업',s:'034020.KS',dy:0,df:'없음',isDv:false},
+  {n:'현대일렉트릭',s:'267260.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'LS에코에너지',s:'229640.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'HD현대일렉트릭',s:'267260.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'HD현대마린솔루션',s:'443060.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'HSD엔진',s:'082740.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'STX엔진',s:'077970.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'한국조선해양',s:'009540.KS',dy:0.5,df:'연배당',isDv:true},
+  {n:'대우조선해양',s:'042660.KS',dy:0,df:'없음',isDv:false},
+  {n:'SamsungC&T',s:'028260.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'GS이앤씨',s:'006360.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'DL',s:'000210.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'태영건설',s:'009410.KS',dy:0,df:'없음',isDv:false},
+  {n:'동원산업',s:'006040.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'사조대림',s:'003960.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'오뚜기',s:'007310.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'매일유업',s:'267980.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'남양유업',s:'003920.KS',dy:1.0,df:'연배당',isDv:true},
+  {n:'한독',s:'002390.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'안국약품',s:'001540.KS',dy:1.5,df:'연배당',isDv:true},
+  {n:'에스앤티모티브',s:'204610.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'세방전지',s:'004490.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'성우하이텍',s:'015750.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'화신',s:'010690.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'서연이화',s:'200880.KS',dy:2.5,df:'연배당',isDv:true},
+  {n:'한국타이어',s:'161390.KS',dy:3.0,df:'분기배당',isDv:true},
+  {n:'쌍용씨앤이',s:'003420.KS',dy:2.0,df:'연배당',isDv:true},
+  {n:'한일홀딩스',s:'060980.KS',dy:3.0,df:'연배당',isDv:true},
+  {n:'쌍용자동차',s:'003620.KS',dy:0,df:'없음',isDv:false},
+  {n:'KG모빌리티',s:'003620.KS',dy:0,df:'없음',isDv:false},
+  // ── 한국 KOSDAQ 추가 ──
+
+  {n:'뷰노',s:'338220.KQ',dy:0,df:'없음',isDv:false},
+  {n:'루닛',s:'328130.KQ',dy:0,df:'없음',isDv:false},
+  {n:'딥노이드',s:'315640.KQ',dy:0,df:'없음',isDv:false},
+  {n:'수젠텍',s:'253840.KQ',dy:0,df:'없음',isDv:false},
+  {n:'제놀루션',s:'225220.KQ',dy:0,df:'없음',isDv:false},
+  {n:'박셀바이오',s:'323990.KQ',dy:0,df:'없음',isDv:false},
+  {n:'큐리옥스바이오시스템즈',s:'419840.KQ',dy:0,df:'없음',isDv:false},
+  {n:'티이씨앤코',s:'064760.KQ',dy:0,df:'없음',isDv:false},
+  {n:'코미팜',s:'041960.KQ',dy:0,df:'없음',isDv:false},
+  {n:'지씨셀',s:'144510.KQ',dy:0,df:'없음',isDv:false},
+
+  {n:'원티드랩',s:'376980.KQ',dy:0,df:'없음',isDv:false},
+  {n:'하이브',s:'352820.KS',dy:0,df:'없음',isDv:false},
+  {n:'SM엔터테인먼트',s:'041510.KQ',dy:0.5,df:'연배당',isDv:true},
+  {n:'YG엔터테인먼트',s:'122870.KQ',dy:0.5,df:'연배당',isDv:true},
+  {n:'JYP엔터테인먼트',s:'035900.KQ',dy:1.0,df:'연배당',isDv:true},
+  {n:'와이지플러스',s:'와이지플러스',dy:0,df:'없음',isDv:false},
+  {n:'에스엠',s:'041510.KQ',dy:0.5,df:'연배당',isDv:true},
+  {n:'하이브',s:'352820.KS',dy:0,df:'없음',isDv:false},
+  {n:'위지윅스튜디오',s:'299900.KQ',dy:0,df:'없음',isDv:false},
+  {n:'크래프톤',s:'259960.KS',dy:0,df:'없음',isDv:false},
+  {n:'넷마블',s:'251270.KS',dy:0,df:'없음',isDv:false},
+  {n:'네오위즈',s:'095660.KQ',dy:2.5,df:'연배당',isDv:true},
+  {n:'엑스엘게임즈',s:'304100.KQ',dy:0,df:'없음',isDv:false},
+  {n:'선데이토즈',s:'123420.KQ',dy:0,df:'없음',isDv:false},
+  {n:'데브시스터즈',s:'194480.KQ',dy:0,df:'없음',isDv:false},
+  {n:'조이시티',s:'067000.KQ',dy:0,df:'없음',isDv:false},
+  {n:'웹젠',s:'069080.KQ',dy:2.0,df:'연배당',isDv:true},
+  {n:'게임빌',s:'063080.KQ',dy:0,df:'없음',isDv:false},
+  {n:'드래곤플라이',s:'030350.KQ',dy:0,df:'없음',isDv:false},
 ];
 
 const COLORS=['#2563eb','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#db2777','#65a30d','#ea580c','#0f766e'];
@@ -1234,28 +2157,35 @@ async function addHolding(){
   const nm=document.getElementById('aName').value.trim();
   let avg=parseFloat(document.getElementById('aAvg').value);
   const qty=parseInt(document.getElementById('aQty').value);
-  const dy=parseFloat(document.getElementById('aDy').value)||0;
-  const df=document.getElementById('aDf').value;
   const acct=document.getElementById('aAcct').value;
   const date=document.getElementById('aDate').value||new Date().toISOString().split('T')[0];
   if(!nm){alert('종목명을 입력해주세요');return;}
   if(!avg||!qty){alert('평단가와 수량을 입력해주세요');return;}
-  const dbItem=SEARCH_DB.find(x=>x.n===nm||x.s===nm.toUpperCase())||getAllDB().find(x=>x.n===nm);
+
+  // DB에서 배당 정보 자동 조회
+  const dbItem=getAllDB().find(x=>x.n===nm||x.s===nm.toUpperCase()||x.s.replace(/\.(KS|KQ)$/,'')=== nm);
+  const dy=dbItem?dbItem.dy||0:0;
+  const df=dbItem?dbItem.df||'없음':'없음';
+  const isDv=dy>0;
+
   const sym=dbItem?dbItem.s:toSym(nm);
   // USD 입력 → KRW 변환
   const isUS=!isKR(sym)&&/^[A-Za-z]/.test(nm.trim());
-  if(isUS&&avg<10000){
-    await fetchRate();
-    avg=Math.round(avg*D.rate);
-  }
+  if(isUS&&avg<10000){await fetchRate();avg=Math.round(avg*D.rate);}
+
   const id=Date.now();
   const buys=[{id:id+'_0',qty,price:avg,date,acct}];
-  D.h.push({id,n:nm,sym,avg,avgCost:avg,qty,cur:avg,dy,df:dy>0?df:'없음',isDv:dy>0,err:0,divHistory:undefined,acct,memo:'',buys});
-  save();document.getElementById('addOv').classList.remove('show');render();
-  ['aName','aAvg','aQty','aDy'].forEach(x=>document.getElementById(x).value='');
-  document.getElementById('aDf').value='없음';
+  D.h.push({id,n:nm,sym,avg,avgCost:avg,qty,cur:avg,dy,df:isDv?df:'없음',isDv,err:0,divHistory:undefined,acct,memo:'',buys});
+  save();
+  document.getElementById('addOv').classList.remove('show');
+  render();
+  // 폼 초기화
+  ['aName','aAvg','aQty'].forEach(x=>document.getElementById(x).value='');
   document.getElementById('aAcct').value='general';
   document.getElementById('aDate').value='';
+  document.getElementById('aDy').value='0';
+  document.getElementById('aDf').value='없음';
+  document.getElementById('aDivChip').style.display='none';
   updateAvgCurrency('');
   if(!isKR(sym))await fetchRate();
   await fetchOne(id);
@@ -1523,7 +2453,7 @@ function hideG(){document.getElementById('gld').style.display='none';if(_gt){cle
 function forceClose(){hideG();LDALL=false;setBusy(false);LDS.clear();render();}
 function setBusy(b){const btn=document.getElementById('rfBtn');btn.className='rfbtn '+(b?'off':'on');btn.textContent=b?'⏳':'🔄 업데이트';}
 
-const DYN_KEY='krStockDB_v7';
+const DYN_KEY='krStockDB_v8';
 const DYN_TTL=24*3600*1000;
 let DYN_DB=[];
 
@@ -1541,86 +2471,73 @@ async function initDynDB(){
   setDbStatus('⏳ 종목 DB 로딩 중...',true);
   const seen=new Set(), result=[];
 
-  // SEARCH_DB 기본 포함
-  SEARCH_DB.forEach(x=>{
+  // 1) SEARCH_DB 기본 포함
+  SEARCH_DB.filter(x=>x.s).forEach(x=>{
     if(!seen.has(x.s)){seen.add(x.s);result.push({n:x.n,s:x.s,dy:x.dy||0,df:x.df||'없음',isDv:x.isDv||false});}
   });
 
-  // KRX 전 종목 로드 (KOSPI + KOSDAQ 합산 2500+ 종목)
-  async function loadKrxMarket(mktId){
-    const url='https://www.krx.co.kr/comm/bldAttendant/getJsonData.cmd';
-    const body=new URLSearchParams({
-      bld:'dbms/MDC/STAT/standard/MDCSTAT01501',
-      mktId, // STK=KOSPI, KSQ=KOSDAQ
-      segTpCd:'ALL', share:'1', money:'1', csvxls_isNo:'false'
-    });
-    for(const mkP of PROXIES){
+  // 2) Yahoo Finance 스크리너 - 국내/미국 전 종목
+  async function loadScreener(url){
+    for(const mkP of [u=>u,...PROXIES]){
       try{
-        const r=await fetch(mkP(url),{method:'POST',body});
-        if(!r.ok)continue;
+        const r=await Promise.race([
+          fetch(mkP(url)),
+          new Promise((_,rej)=>setTimeout(()=>rej(),5000))
+        ]);
+        if(!r||!r.ok)continue;
         const text=await r.text();
         const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
         const j=JSON.parse(raw);
-        const items=j?.OutBlock_1||j?.output||[];
-        if(items.length>0)return items;
+        const quotes=j?.finance?.result?.[0]?.quotes||j?.quotes||[];
+        if(quotes.length>0)return quotes;
       }catch{}
     }
     return[];
   }
 
-  // 방법1: KRX 공식 API
-  let krxOk=false;
-  try{
-    const [kospi,kosdaq]=await Promise.all([loadKrxMarket('STK'),loadKrxMarket('KSQ')]);
-    if(kospi.length+kosdaq.length>100){
-      const mktOf={STK:'.KS',KSQ:'.KQ'};
-      [...kospi.map(x=>({...x,_mkt:'STK'})),...kosdaq.map(x=>({...x,_mkt:'KSQ'}))]
-        .forEach(x=>{
-          const code=(x.ISU_SRT_CD||x.종목코드||'').replace(/\s/g,'');
-          const name=x.ISU_ABBRV||x.ISU_NM||x.종목명||'';
-          if(!code||!name||seen.has(code))return;
-          seen.add(code);
-          const sym=code+mktOf[x._mkt];
-          const db=SEARCH_DB.find(d=>d.s===sym);
-          const div=db||guessEtfDiv(name);
-          result.push({n:name,s:sym,dy:div.dy||0,df:div.df||'없음',isDv:div.isDv||false});
-        });
-      krxOk=true;
-    }
-  }catch{}
-
-  // 방법2: KRX 실패 시 Yahoo Finance 스크리너로 상위 종목 로드
-  if(!krxOk){
-    const screens=[
-      'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=250&formatted=false&scrIds=ms_kr_stock',
-      'https://query2.finance.yahoo.com/v1/finance/screener?crumb=&lang=ko-KR&region=KR&formatted=false&corsDomain=finance.yahoo.com',
-    ];
-    for(const url of screens){
-      for(const mkP of [u=>u,...PROXIES]){
-        try{
-          const r=await fetch(mkP(url));if(!r.ok)continue;
-          const text=await r.text();
-          const j=JSON.parse(text.startsWith('{"contents"')?JSON.parse(text).contents:text);
-          const quotes=j?.finance?.result?.[0]?.quotes||[];
-          if(quotes.length<10)continue;
-          quotes.forEach(x=>{
-            const sym=x.symbol||'';
-            const name=x.shortname||x.longname||sym;
-            if(!sym||!name||seen.has(sym))return;
-            seen.add(sym);
-            const db=SEARCH_DB.find(d=>d.s===sym);
-            const div=db||guessEtfDiv(name);
-            result.push({n:name,s:sym,dy:div.dy||0,df:div.df||'없음',isDv:div.isDv||false});
-          });
-          if(result.length>200)break;
-        }catch{}
-      }
-    }
+  // Yahoo Finance 종목 처리
+  function pushQuotes(quotes){
+    quotes.forEach(q=>{
+      const sym=q.symbol||'';
+      const name=q.shortname||q.longname||sym;
+      if(!sym||!name||sym.includes('^')||seen.has(sym))return;
+      seen.add(sym);
+      const db=SEARCH_DB.find(d=>d.s===sym);
+      if(db){result.push({n:db.n||name,s:sym,dy:db.dy||0,df:db.df||'없음',isDv:db.isDv||false});return;}
+      // Yahoo Finance 배당 데이터 활용
+      const rawDy=(q.trailingAnnualDividendYield||q.dividendYield||0)*100;
+      const dy=Math.round(rawDy*10)/10;
+      const div=guessEtfDiv(name);
+      const isDv=dy>0||div.isDv;
+      const df=isDv?(div.df||'분기배당'):'없음';
+      result.push({n:name,s:sym,dy:isDv?Math.max(dy,div.dy||0):0,df,isDv});
+    });
   }
 
-  // 방법3: ETF 브랜드 쿼리 보강 (기존 방식 유지)
+  // 스크리너 목록 - 한국/미국 주요 종목 커버
+  const screeners=[
+    // 한국
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=250&formatted=false&scrIds=ms_kr_stock',
+    // 미국 활성주
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=250&formatted=false&scrIds=most_actives',
+    // 미국 배당주
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=250&formatted=false&scrIds=highest_analyst_rated_mega_cap_growth',
+    // 미국 대형주
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=250&formatted=false&scrIds=ms_us_large_cap_stocks',
+    // 미국 소형주
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=250&formatted=false&scrIds=ms_us_mid_cap_stocks',
+  ];
+
+  let loaded=0;
+  for(const url of screeners){
+    const quotes=await loadScreener(url);
+    if(quotes.length>0){pushQuotes(quotes);loaded++;}
+    setDbStatus('⏳ 로딩 중... '+result.length+'개',true);
+  }
+
+  // 3) ETF 브랜드 쿼리 (한국 ETF 보강)
   async function acQuery(q){
-    try{return await naverACJsonp(q,200);}catch{}
+    try{const r=await naverACJsonp(q,200);if(r?.items?.flat().length>0)return r;}catch{}
     const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(q)+'&q_enc=UTF-8&st=111&sug_typ=1&r_format=json&r_enc=UTF-8&r_lt=200&r_unicode=1&r_escape=1';
     for(const mkP of PROXIES){
       try{
@@ -1628,7 +2545,7 @@ async function initDynDB(){
         const t=await r.text();
         const raw=t.startsWith('{"contents"')?JSON.parse(t).contents:t;
         const j=JSON.parse(raw);
-        if(j?.items&&j.items.flat().length>0)return j;
+        if(j?.items?.flat().length>0)return j;
       }catch{}
     }
     return null;
@@ -1647,16 +2564,12 @@ async function initDynDB(){
       });
     });
   }
-  const etfQ=['KODEX','TIGER','ACE','RISE','SOL','HANARO','KBSTAR','ARIRANG','TIMEFOLIO','PLUS'];
-  for(const q of etfQ){
-    const data=await acQuery(q);
-    pushItems(data);
+  for(const q of ['KODEX','TIGER','ACE','RISE','SOL','HANARO','KBSTAR','ARIRANG','TIMEFOLIO','PLUS']){
+    pushItems(await acQuery(q));
   }
 
   DYN_DB=result;
-  if(result.length>50){
-    try{localStorage.setItem(DYN_KEY,JSON.stringify({ts:Date.now(),data:DYN_DB}));}catch{}
-  }
+  try{localStorage.setItem(DYN_KEY,JSON.stringify({ts:Date.now(),data:DYN_DB}));}catch{}
   setDbStatus('✅ 종목 '+DYN_DB.length+'개',false);
 }
 
@@ -1680,7 +2593,10 @@ let _ddTimer=null;
 
 function getAllDB(){
   const seen=new Set(),out=[];
-  for(const x of [...DYN_DB,...SEARCH_DB]){if(!seen.has(x.s)){seen.add(x.s);out.push(x);}}
+  // SEARCH_DB 우선 (배당 데이터 정확) → DYN_DB 보완
+  for(const x of [...SEARCH_DB,...DYN_DB]){
+    if(!seen.has(x.s)&&x.s){seen.add(x.s);out.push(x);}
+  }
   return out;
 }
 
@@ -1689,9 +2605,13 @@ function doSearchDD(q){
   q=q.trim();
   if(!q){dd.style.display='none';return;}
   const qL=q.toLowerCase();
-  const local=getAllDB()
-    .filter(x=>x.n.includes(q)||x.n.toLowerCase().includes(qL)||x.s.toLowerCase().startsWith(qL)||x.s.replace(/\.(KS|KQ)$/,'').startsWith(q))
-    .slice(0,30);  // 최대 30개 표시
+  const qU=q.toUpperCase();
+  const all=getAllDB();
+  // 정확히 일치 먼저, 그 다음 시작 일치, 그 다음 포함
+  const exact=all.filter(x=>x.s===qU||x.s.replace(/\.(KS|KQ)$/,'')=== qU||x.n===q);
+  const starts=all.filter(x=>!exact.includes(x)&&(x.s.toLowerCase().startsWith(qL)||x.s.replace(/\.(KS|KQ)$/,'').toLowerCase().startsWith(qL)||x.n.startsWith(q)));
+  const contains=all.filter(x=>!exact.includes(x)&&!starts.includes(x)&&(x.n.includes(q)||x.n.toLowerCase().includes(qL)));
+  const local=[...exact,...starts,...contains];
   showDD(dd,local,q);
   if(_ddTimer)clearTimeout(_ddTimer);
   _ddTimer=setTimeout(()=>fetchNaverSearch(q,dd,local.length),250);
@@ -1715,7 +2635,7 @@ async function fetchNaverSearch(q,dd,localCount){
   const apiR=isKor?await krSearch(q):await usSearch(q);
   if(!apiR.length)return;
   const seen=new Set(getAllDB().filter(x=>x.n.includes(q)||x.s.toLowerCase().includes(q.toLowerCase())).map(x=>x.s));
-  const merged=[...getAllDB().filter(x=>x.n.includes(q)||x.n.toLowerCase().includes(q.toLowerCase())),...apiR.filter(x=>!seen.has(x.s))].slice(0,15);
+  const merged=[...getAllDB().filter(x=>x.n.includes(q)||x.n.toLowerCase().includes(q.toLowerCase())),...apiR.filter(x=>!seen.has(x.s))];
   if(merged.length)showDD(dd,merged,q);
 }
 
@@ -1820,10 +2740,22 @@ function showDD(dd,items,q){
 
 function pickSearch(n,s,dy,df,isDv){
   document.getElementById('aName').value=n;
-  document.getElementById('aDy').value=dy||'';
+  document.getElementById('aDy').value=dy||0;
   document.getElementById('aDf').value=df&&df!=='없음'?df:'없음';
   document.getElementById('searchDD').style.display='none';
   if(_ddTimer)clearTimeout(_ddTimer);
+  updateAvgCurrency(n);
+  // 배당 정보 칩 표시
+  const chip=document.getElementById('aDivChip');
+  if(isDv&&dy>0){
+    chip.style.display='block';
+    chip.textContent='📊 배당 자동 설정: 연 '+dy+'% · '+df;
+  }else{
+    chip.style.display='block';
+    chip.style.background='#f9f8f5';
+    chip.style.color='#aaa';
+    chip.textContent='📊 배당 없음 (또는 미등록)';
+  }
 }
 function closeDD(){document.getElementById('searchDD').style.display='none';}
 document.addEventListener('click',e=>{if(!e.target.closest('#searchDD')&&e.target.id!=='aName')closeDD();});
@@ -1832,6 +2764,200 @@ render();
 initDynDB();
 fetchRate();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+/* ===== SCREENSHOT OCR (Tesseract.js - 완전 무료) ===== */
+let SS_FILE=null, SS_PARSED=[];
 
+function openSsImport(){
+  SS_FILE=null; SS_PARSED=[];
+  document.getElementById('ssDropZone').style.display='block';
+  document.getElementById('ssPreview').style.display='none';
+  document.getElementById('ssStatus').style.display='none';
+  document.getElementById('ssResult').style.display='none';
+  document.getElementById('ssAnalyzeBtn').style.display='none';
+  document.getElementById('ssImportBtn').style.display='none';
+  document.getElementById('ssOv').classList.add('show');
+  document.getElementById('ssFileInput').onchange=function(e){
+    const file=e.target.files&&e.target.files[0];
+    if(!file)return;
+    SS_FILE=file;
+    document.getElementById('ssPreviewImg').src=URL.createObjectURL(file);
+    document.getElementById('ssPreview').style.display='block';
+    document.getElementById('ssDropZone').style.display='none';
+    document.getElementById('ssAnalyzeBtn').style.display='block';
+    document.getElementById('ssResult').style.display='none';
+    document.getElementById('ssImportBtn').style.display='none';
+    e.target.value='';
+  };
+}
+
+function closeSsModal(){
+  document.getElementById('ssOv').classList.remove('show');
+}
+
+async function runSsAnalyze(){
+  if(!SS_FILE){alert('이미지를 먼저 선택하세요');return;}
+  const st=document.getElementById('ssStatus');
+  const stxt=document.getElementById('ssStatusTxt');
+  const bar=document.getElementById('ssProgressBar');
+  const btn=document.getElementById('ssAnalyzeBtn');
+  const res=document.getElementById('ssResult');
+  const imp=document.getElementById('ssImportBtn');
+
+  st.style.display='block';
+  stxt.textContent='Tesseract 로딩 중...';
+  bar.style.width='0%';
+  btn.style.display='none';
+  res.style.display='none';
+  imp.style.display='none';
+
+  try{
+    const {data:{text}}=await Tesseract.recognize(SS_FILE,'kor+eng',{
+      workerBlobURL: false,
+      workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
+      corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core-simd.wasm.js',
+      langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+      logger:m=>{
+        if(m.status==='recognizing text'){
+          bar.style.width=Math.round(m.progress*100)+'%';
+          stxt.textContent='텍스트 인식 중... '+Math.round(m.progress*100)+'%';
+        }else{
+          stxt.textContent=m.status;
+        }
+      }
+    });
+
+    st.style.display='none';
+    if(!text||!text.trim()){
+      res.innerHTML='<div style="background:#fff7ed;border-radius:10px;padding:12px;font-size:12px;color:#d97706">⚠️ 텍스트를 인식하지 못했습니다</div>';
+      res.style.display='block';
+      btn.style.display='block'; btn.textContent='🔄 재시도';
+      return;
+    }
+
+    SS_PARSED=parseSsText(text);
+
+    if(!SS_PARSED.length){
+      res.innerHTML='<div style="background:#fff7ed;border-radius:10px;padding:12px;font-size:12px;color:#d97706">⚠️ 종목 패턴을 찾지 못했습니다<br><small style="color:#aaa;word-break:break-all">'+text.slice(0,300).replace(/</g,'&lt;')+'</small></div>';
+      res.style.display='block';
+      btn.style.display='block'; btn.textContent='🔄 재시도';
+      return;
+    }
+
+    renderSsParsed();
+  }catch(e){
+    st.style.display='none';
+    res.innerHTML='<div style="background:#fef2f2;border-radius:10px;padding:12px;font-size:12px;color:#dc2626">❌ '+(e.message||'오류 발생')+'</div>';
+    res.style.display='block';
+    btn.style.display='block'; btn.textContent='🔄 재시도';
+  }
+}
+
+function parseSsText(text){
+  const lines=text.split(/[\n\r]+/).map(l=>l.trim()).filter(Boolean);
+  const full=lines.join(' ');
+  const N=s=>parseInt(String(s).replace(/[,.\s]/g,'').replace(/[Ool]/g,c=>c==='O'||c==='o'?'0':'1'),10);
+  const results=[];
+  const seen=new Set();
+  const taxKw=['ISA','IRP','연금','연금저축','개인형','개인종합'];
+
+  function push(name,qty,price,acct){
+    if(!name||qty<=0||price<=0)return;
+    const k=name+'|'+qty;
+    if(seen.has(k))return;
+    seen.add(k);
+    const db=getAllDB().find(x=>x.n===name||x.n.includes(name)||name.includes(x.n));
+    results.push({name:name.slice(0,30),qty,avgPrice:price,acct,db});
+  }
+
+  // 패턴1: "종목명 N주 · M원" 또는 "N주 M원"
+  const p1=/([가-힣A-Za-z][가-힣A-Za-z0-9\s\-]{1,30}?)\s+([\d,]+)\s*주\s*[··\-]\s*([\d,]+)\s*원/g;
+  let m;
+  while((m=p1.exec(text))!==null){
+    const ctx=text.slice(Math.max(0,m.index-60),m.index);
+    const acct=taxKw.some(k=>ctx.includes(k))?'tax':'general';
+    push(m[1].trim(),N(m[2]),N(m[3]),acct);
+  }
+
+  // 패턴2: 보유량/평단가 형식 (단일종목 상세화면)
+  const mQty=full.match(/보유[량주]?\s*([\d,]+)\s*주/);
+  const mPrc=full.match(/평단[가]?\s*([\d,]+)\s*원/);
+  if(mQty&&mPrc){
+    const qty=N(mQty[1]),price=N(mPrc[1]);
+    // 종목명 추출 - 6자리 코드 앞 한글
+    let name='';
+    for(const l of lines){
+      if(/[가-힣]{3,}/.test(l)&&l.length<=20&&!/\d{4}/.test(l)){name=l.trim();break;}
+    }
+    if(name&&qty>0&&price>0){
+      const acct=taxKw.some(k=>full.includes(k))?'tax':'general';
+      push(name,qty,price,acct);
+    }
+  }
+
+  // 패턴3: 연속 두 줄 "N주" + "M원"
+  for(let i=0;i<lines.length-1;i++){
+    const mQ=lines[i].match(/^([\d,]+)\s*주$/);
+    const mP=lines[i+1].match(/^([\d,]+)\s*원$/);
+    if(mQ&&mP){
+      let name='';
+      for(let j=i-1;j>=Math.max(0,i-4);j--){
+        if(/[가-힣A-Z]/.test(lines[j])&&lines[j].length>=3){name=lines[j];break;}
+      }
+      const ctx=lines.slice(Math.max(0,i-5),i).join(' ');
+      const acct=taxKw.some(k=>ctx.includes(k))?'tax':'general';
+      push(name||'종목',N(mQ[1]),N(mP[1]),acct);
+    }
+  }
+
+  return results;
+}
+
+function renderSsParsed(){
+  const rows=SS_PARSED.map((x,i)=>{
+    const dbMatch=x.db;
+    const chip=dbMatch?`<span style="font-size:10px;background:#f0fdf4;color:#16a34a;padding:1px 6px;border-radius:4px;margin-left:4px">DB매칭</span>`:'';
+    return`<div style="padding:10px 0;${i>0?'border-top:1px solid #f3f3f1':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><span style="font-size:13px;font-weight:700">${x.name}</span>${chip}</div>
+        <span style="font-size:10px;padding:2px 7px;border-radius:5px;${x.acct==='tax'?'background:#f0fdf4;color:#16a34a':'background:#f3f4f6;color:#888'}">${x.acct==='tax'?'절세':'일반'}</span>
+      </div>
+      <div style="font-size:11px;color:#aaa;margin-top:2px">${fN(x.qty)}주 · 평단 ${fN(x.avgPrice)}원${dbMatch?' · '+dbMatch.df:''}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('ssResult').innerHTML=`
+    <div style="background:#f0fdf4;border-radius:10px;padding:9px 12px;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;color:#16a34a">✅ ${SS_PARSED.length}개 종목 인식</div>
+    </div>
+    <div style="border:1px solid #e8e3d8;border-radius:10px;padding:0 12px">${rows}</div>`;
+  document.getElementById('ssResult').style.display='block';
+  document.getElementById('ssImportBtn').style.display='block';
+  document.getElementById('ssAnalyzeBtn').style.display='block';
+  document.getElementById('ssAnalyzeBtn').textContent='🔄 재분석';
+}
+
+function confirmSsImport(){
+  if(!SS_PARSED.length)return;
+  let added=0;
+  SS_PARSED.forEach(x=>{
+    if(!x.name||!x.qty||!x.avgPrice)return;
+    const db=x.db;
+    const id=Date.now()+added*7+Math.floor(Math.random()*999);
+    const sym=db?db.s:toSym(x.name);
+    D.h.push({
+      id,n:db?db.n:x.name,sym,avg:x.avgPrice,avgCost:x.avgPrice,qty:x.qty,
+      cur:x.avgPrice,dy:db?db.dy||0:0,df:db?db.df||'없음':'없음',
+      isDv:db?db.isDv||false:false,err:0,divHistory:undefined,
+      acct:x.acct||'general',memo:'',
+      buys:[{id:id+'_0',qty:x.qty,price:x.avgPrice,date:new Date().toISOString().split('T')[0],acct:x.acct||'general'}]
+    });
+    added++;
+  });
+  save();render();
+  closeSsModal();
+  D.h.slice(-added).forEach((h,i)=>{if(h.sym)setTimeout(()=>fetchOne(h.id),i*400);});
+}
+</script>
 </body>
 </html>
