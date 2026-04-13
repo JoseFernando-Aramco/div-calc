@@ -2280,6 +2280,13 @@ ${renderDivHistory(h,id)}`;
     document.getElementById('histOv').classList.remove('show');
     openSell(id);
   };
+  // 삭제 버튼 상태 초기화
+  const delBtn=document.getElementById('histOvDelBtn');
+  delBtn.textContent='삭제';
+  delBtn.style.background='#fef2f2';
+  delBtn.style.color='#dc2626';
+  delBtn.dataset.confirm='0';
+
   // 삭제 버튼 — delH 안에서 confirm 후 모달 닫음
   document.getElementById('histOvDelBtn').onclick=function(){
     delH(id);
