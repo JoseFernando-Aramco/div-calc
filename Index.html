@@ -2466,8 +2466,8 @@ async function naverPrice(code){
         const r=await fetch(mkP(url),{headers:{Referer:'https://finance.naver.com/'}});
         if(!r.ok)continue;
         const text=await r.text();
-        // fchart XML 형식: <item data="날짜|시가|고가|저가|종가|거래량" />
-        const fchart=text.match(/data="[\d]+\|[\d]+\|[\d]+\|[\d]+\|([\d]+)\|/);
+        // fchart XML 형식: <item data='날짜|시가|고가|저가|종가|거래량' />
+        const fchart=text.match(/data=['"][\d]+\|[\d]+\|[\d]+\|[\d]+\|([\d]+)\|/);
         if(fchart){const p=parseNum(fchart[1]);if(p>0)return p;}
         // JSON 형식
         const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
