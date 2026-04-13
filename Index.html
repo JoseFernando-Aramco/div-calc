@@ -2297,10 +2297,27 @@ function guessEtfDiv(n){
 }
 
 function toSym(n){
-  const db=SEARCH_DB.find(x=>x.n===n||x.s===n);
-  if(db)return db.s;
-  if(/^[A-Za-z0-9]{6}$/.test(n))return n+'.KS';
+  // 1) getAllDB에서 이름 매칭
+  const db=getAllDB().find(x=>x.n===n||(x.s&&x.s===n));
+  if(db&&db.s)return db.s;
+  // 2) 6자리 숫자 코드
+  if(/^\d{6}$/.test(n))return n+'.KS';
+  // 3) 알파벳+숫자 6자리 (신규 ETF 코드)
+  if(/^[A-Z0-9]{6,7}$/.test(n)&&!/^[A-Z]{2,5}$/.test(n))return n+'.KS';
+  // 4) 미국 주식 티커 (2~5자 대문자)
+  if(/^[A-Z]{2,5}$/.test(n.trim()))return n.trim();
+  // 5) 국내 ETF 브랜드명 → KS 마킹
+  if(/^(KODEX|TIGER|RISE|ACE|SOL|HANARO|KBSTAR|ARIRANG|TIMEFOLIO|PLUS|KIWOOM|WON|FOCUS|1Q|HK|마이다스|마이티|파워)/.test(n))return '___KR___';
   return n.toUpperCase();
+}
+
+function isKRName(n){
+  // 이름으로 국내 종목 여부 판단
+  if(/[가-힣]/.test(n))return true;
+  if(/^(KODEX|TIGER|RISE|ACE|SOL|HANARO|KBSTAR|ARIRANG|TIMEFOLIO|PLUS|KIWOOM|WON|FOCUS|1Q|HK)/.test(n))return true;
+  const db=getAllDB().find(x=>x.n===n);
+  if(db&&db.s)return isKR(db.s);
+  return false;
 }
 function load(){
   try{
@@ -2379,18 +2396,24 @@ async function fetchOne(id){
   const h=D.h.find(x=>x.id===id);if(!h)return;
   LDS.add(id);render();
   try{
-    let sym=h.sym||toSym(h.n);let p,resolvedName=null;
+    let sym=h.sym||toSym(h.n);
+    let p,resolvedName=null;
+
+    // sym이 비어있거나 KR 마킹이면 네이버로 심볼 먼저 찾기
+    if(!sym||sym==='___KR___'||(!isKR(sym)&&isKRName(h.n))){
+      const found=await findKRSymbol(h.n);
+      if(found)sym=found;
+      else if(!sym||sym==='___KR___') sym=h.n.replace(/\s+/g,'')+'.KS'; // 최후 수단
+    }
+
     if(isKR(sym)){
       let res=null;
       try{res=await yahooQuote(sym);p=Math.round(res.price);if(res.resolvedSym&&res.resolvedSym!==sym)sym=res.resolvedSym;}catch{}
-      // 시세 실패 시 → Yahoo 검색으로 올바른 심볼 자동 찾기
       if(!p){
         const found=await findKRSymbol(h.n);
         if(found){
           sym=found;
-          const res2=await yahooQuote(sym);
-          p=Math.round(res2.price);
-          if(res2.resolvedSym&&res2.resolvedSym!==sym)sym=res2.resolvedSym;
+          try{const res2=await yahooQuote(sym);p=Math.round(res2.price);if(res2.resolvedSym)sym=res2.resolvedSym;}catch{}
         }
       }
       if(/^\d{6}$/.test(h.n)){
@@ -2410,8 +2433,46 @@ async function fetchOne(id){
   LDS.delete(id);render();
 }
 
-// 종목명으로 Yahoo Finance에서 올바른 심볼 찾기
 async function findKRSymbol(name){
+  // 1) 네이버 자동완성 API (가장 빠름)
+  try{
+    const url='https://ac.finance.naver.com/ac?q='+encodeURIComponent(name)+'&q_enc=UTF-8&st=111&sug_typ=1&r_format=json&r_enc=UTF-8&r_lt=10&r_unicode=1&r_escape=1';
+    for(const mkP of PROXIES){
+      try{
+        const r=await fetch(mkP(url));if(!r.ok)continue;
+        const text=await r.text();
+        const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
+        const j=JSON.parse(raw);
+        const items=(j.items||[]).flat();
+        // 이름 일치 항목 찾기
+        const hit=items.find(x=>x[0]===name||x[0].includes(name.slice(0,8)));
+        if(hit){
+          const code=hit[1];
+          // 코드가 숫자/알파벳 혼합이면 .KS
+          if(/^[A-Z0-9]{6,7}$/i.test(code))return code+'.KS';
+          if(/^\d{6}$/.test(code))return code+'.KS';
+        }
+      }catch{}
+    }
+  }catch{}
+  // 2) 네이버 모바일 검색 API
+  try{
+    const url='https://m.stock.naver.com/api/search/all?keyword='+encodeURIComponent(name)+'&page=0&pageSize=5';
+    for(const mkP of PROXIES){
+      try{
+        const r=await fetch(mkP(url));if(!r.ok)continue;
+        const j=await r.json();
+        const stocks=j?.result?.stock||[];
+        const hit=stocks.find(x=>x.name===name||x.itemName===name)||stocks[0];
+        if(hit){
+          const code=hit.code||hit.itemCode;
+          const mkt=hit.market||'KOSPI';
+          return code+(mkt==='KOSDAQ'?'.KQ':'.KS');
+        }
+      }catch{}
+    }
+  }catch{}
+  // 3) Yahoo Finance 검색 (마지막 수단)
   try{
     const url='https://query1.finance.yahoo.com/v1/finance/search?q='+encodeURIComponent(name)+'&lang=ko&region=KR&quotesCount=5&newsCount=0';
     for(const mkP of [u=>u,...PROXIES]){
@@ -2421,7 +2482,7 @@ async function findKRSymbol(name){
         const j=JSON.parse(text.startsWith('{"contents"')?JSON.parse(text).contents:text);
         const quotes=j?.finance?.result?.[0]?.quotes||j?.quotes||[];
         const hit=quotes.find(q=>(q.symbol||'').endsWith('.KS')||(q.symbol||'').endsWith('.KQ'));
-        if(hit){return hit.symbol;}
+        if(hit)return hit.symbol;
       }catch{}
     }
   }catch{}
