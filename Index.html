@@ -191,8 +191,8 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
     <div style="display:flex;gap:0;background:#f3f2ef;border-radius:12px;padding:4px;width:100%">
       <button class="sp on" id="sDefault" onclick="setSort('default')" style="flex:1;border-radius:8px;border:none;text-align:center">기본</button>
       <button class="sp" id="sCustom" onclick="setSort('custom')" style="flex:1;border-radius:8px;border:none;text-align:center">사용자</button>
-      <button class="sp" id="sVal" onclick="setSort('val')" style="flex:1;border-radius:8px;border:none;text-align:center">평가액↓</button>
-      <button class="sp" id="sPnl" onclick="setSort('pnl')" style="flex:1;border-radius:8px;border:none;text-align:center">수익률↓</button>
+      <button class="sp" id="sVal" onclick="setSort('val')" style="flex:1;border-radius:8px;border:none;text-align:center">평가액 <span style="font-size:10px;letter-spacing:-1px"><span style="opacity:.3">↓</span><span style="opacity:.3">↑</span></span></button>
+      <button class="sp" id="sPnl" onclick="setSort('pnl')" style="flex:1;border-radius:8px;border:none;text-align:center">수익률 <span style="font-size:10px;letter-spacing:-1px"><span style="opacity:.3">↓</span><span style="opacity:.3">↑</span></span></button>
     </div>
   </div>
   <div id="hList"></div>
@@ -3497,8 +3497,20 @@ function setSort(s){
   ['Default','Custom','Val','Pnl'].forEach(k=>{
     const el=document.getElementById('s'+k);
     if(!el)return;
-    if(k==='Val') el.textContent='평가액'+(SORT==='val'?(SORT_DIR.val==='desc'?'↓':'↑'):'↓');
-    if(k==='Pnl') el.textContent='수익률'+(SORT==='pnl'?(SORT_DIR.pnl==='desc'?'↓':'↑'):'↓');
+    if(k==='Val'){
+      const dv=SORT==='val';
+      el.innerHTML='평가액 <span style="font-size:10px;letter-spacing:-1px">'
+        +'<span style="'+(dv&&SORT_DIR.val==='desc'?'color:#2563eb;font-weight:800':'opacity:.3')+'">↓</span>'
+        +'<span style="'+(dv&&SORT_DIR.val==='asc'?'color:#2563eb;font-weight:800':'opacity:.3')+'">↑</span>'
+        +'</span>';
+    }
+    if(k==='Pnl'){
+      const dp=SORT==='pnl';
+      el.innerHTML='수익률 <span style="font-size:10px;letter-spacing:-1px">'
+        +'<span style="'+(dp&&SORT_DIR.pnl==='desc'?'color:#2563eb;font-weight:800':'opacity:.3')+'">↓</span>'
+        +'<span style="'+(dp&&SORT_DIR.pnl==='asc'?'color:#2563eb;font-weight:800':'opacity:.3')+'">↑</span>'
+        +'</span>';
+    }
     el.className='sp'+(s===k.toLowerCase()?' on':'');
   });
   if(s==='custom'){
