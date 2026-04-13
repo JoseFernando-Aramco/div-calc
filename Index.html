@@ -31,6 +31,10 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 .fp{flex:1;padding:10px 0;border-radius:9px;border:none;background:transparent;font-size:13px;color:#999;cursor:pointer;font-weight:500;transition:all .15s;white-space:nowrap}
 .fp.on{background:#fff;color:#1c1917;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.10)}
 .sp{padding:10px 0;background:transparent;font-size:12px;color:#999;cursor:pointer;font-weight:500;transition:all .15s;white-space:nowrap}
+.drag-item{transition:transform .2s ease,box-shadow .2s ease}
+.drag-over-top{border-top:2.5px solid #2563eb !important}
+.drag-over-bot{border-bottom:2.5px solid #2563eb !important}
+.drag-dragging{opacity:.5;transform:scale(.98)}
 .sp.on{background:#fff;color:#1c1917;font-weight:700;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.10)}
 /* 종목 행 (증권앱 스타일) */
 .srow{display:flex;align-items:center;padding:14px 0;border-bottom:1px solid #f3f3f1;cursor:pointer;gap:12px}
@@ -2762,8 +2766,8 @@ function render(){
     }
     return true;
   });
-  if(SORT==='val')fil=[...fil].sort((a,b)=>(b.cur||b.avg)*b.qty-(a.cur||a.avg)*a.qty);
-  else if(SORT==='pnl')fil=[...fil].sort((a,b)=>{const pa=(a.cur||a.avg-a.avgCost)/a.avgCost,pb=(b.cur||b.avg-b.avgCost)/b.avgCost;return pb-pa;});
+  if(SORT==='val')fil=[...fil].sort((a,b)=>{const va=(a.cur||a.avg)*a.qty,vb=(b.cur||b.avg)*b.qty;return SORT_DIR.val==='desc'?vb-va:va-vb;});
+  else if(SORT==='pnl')fil=[...fil].sort((a,b)=>{const pa=(a.cur||a.avg-a.avgCost)/a.avgCost,pb=(b.cur||b.avg-b.avgCost)/b.avgCost;return SORT_DIR.pnl==='desc'?pb-pa:pa-pb;});
   else if(SORT==='custom'){
     // 사용자 지정 순서 적용
     const order=D.customOrder||[];
@@ -3266,42 +3270,48 @@ document.addEventListener('dragstart',function(e){
   if(!item||SORT!=='custom')return;
   _dragSrcId=parseInt(item.dataset.id);
   e.dataTransfer.effectAllowed='move';
-  item.style.opacity='0.4';
+  setTimeout(()=>item.classList.add('drag-dragging'),0);
 });
 document.addEventListener('dragend',function(e){
-  const item=e.target.closest('[data-id]');
-  if(item)item.style.opacity='';
+  document.querySelectorAll('.drag-item').forEach(el=>{
+    el.classList.remove('drag-dragging','drag-over-top','drag-over-bot');
+  });
+  _dragSrcId=null;
 });
 document.addEventListener('dragover',function(e){
   if(SORT!=='custom')return;
   e.preventDefault();
   e.dataTransfer.dropEffect='move';
   const item=e.target.closest('[data-id]');
-  if(item&&parseInt(item.dataset.id)!==_dragSrcId){
-    item.style.background='#eff6ff';
-  }
+  if(!item||parseInt(item.dataset.id)===_dragSrcId)return;
+  // 마우스가 아이템 상단/하단 어느쪽인지 판단
+  const rect=item.getBoundingClientRect();
+  const mid=rect.top+rect.height/2;
+  document.querySelectorAll('.drag-item').forEach(el=>el.classList.remove('drag-over-top','drag-over-bot'));
+  item.classList.add(e.clientY<mid?'drag-over-top':'drag-over-bot');
 });
 document.addEventListener('dragleave',function(e){
   const item=e.target.closest('[data-id]');
-  if(item)item.style.background='';
+  if(item)item.classList.remove('drag-over-top','drag-over-bot');
 });
 document.addEventListener('drop',function(e){
   if(SORT!=='custom')return;
   e.preventDefault();
   const item=e.target.closest('[data-id]');
+  document.querySelectorAll('.drag-item').forEach(el=>el.classList.remove('drag-over-top','drag-over-bot','drag-dragging'));
   if(!item)return;
-  item.style.background='';
   const targetId=parseInt(item.dataset.id);
   if(!_dragSrcId||_dragSrcId===targetId)return;
-  // D.h 배열 순서 변경
+  const rect=item.getBoundingClientRect();
+  const insertBefore=e.clientY<rect.top+rect.height/2;
   const fromIdx=D.h.findIndex(x=>x.id===_dragSrcId);
-  const toIdx=D.h.findIndex(x=>x.id===targetId);
+  let toIdx=D.h.findIndex(x=>x.id===targetId);
   if(fromIdx===-1||toIdx===-1)return;
   const moved=D.h.splice(fromIdx,1)[0];
-  D.h.splice(toIdx,0,moved);
+  toIdx=D.h.findIndex(x=>x.id===targetId);
+  D.h.splice(insertBefore?toIdx:toIdx+1,0,moved);
   D.customOrder=D.h.map(x=>x.id);
   save();render();
-  _dragSrcId=null;
 });
 
 // 터치 드래그 (모바일)
@@ -3363,14 +3373,22 @@ document.addEventListener('touchend',function(e){
   _touchDragId=null;_touchDragEl=null;
 });
 
+let SORT_DIR={val:'desc',pnl:'desc'}; // 각 정렬의 현재 방향
+
 function setSort(s){
+  // val/pnl은 재클릭 시 방향 토글
+  if((s==='val'||s==='pnl')&&SORT===s){
+    SORT_DIR[s]=SORT_DIR[s]==='desc'?'asc':'desc';
+  }
   SORT=s;
   ['Default','Custom','Val','Pnl'].forEach(k=>{
     const el=document.getElementById('s'+k);
-    if(el)el.className='sp'+(s===k.toLowerCase()?' on':'');
+    if(!el)return;
+    if(k==='Val') el.textContent='평가액'+(SORT==='val'?(SORT_DIR.val==='desc'?'↓':'↑'):'↓');
+    if(k==='Pnl') el.textContent='수익률'+(SORT==='pnl'?(SORT_DIR.pnl==='desc'?'↓':'↑'):'↓');
+    el.className='sp'+(s===k.toLowerCase()?' on':'');
   });
   if(s==='custom'){
-    // 사용자지정 모드: 드래그 안내 표시
     document.getElementById('hList').setAttribute('data-drag','1');
   }else{
     document.getElementById('hList').removeAttribute('data-drag');
