@@ -2448,9 +2448,11 @@ async function fetchOne(id){
 
 // 네이버 시세 직접 조회 (국내주식 최종 fallback)
 async function naverPrice(code){
+  function parseNum(v){if(v==null)return 0;return Math.round(Number(String(v).replace(/,/g,'')));}
   const urls=[
     `https://m.stock.naver.com/api/stock/${code}/basic`,
     `https://polling.finance.naver.com/api/realtime/domestic/stock/${code}`,
+    `https://m.stock.naver.com/api/stock/${code}/integration`,
   ];
   for(const url of urls){
     for(const mkP of PROXIES){
@@ -2459,12 +2461,14 @@ async function naverPrice(code){
         const text=await r.text();
         const raw=text.startsWith('{"contents"')?JSON.parse(text).contents:text;
         const j=JSON.parse(raw);
-        // m.stock.naver.com/api/stock/{code}/basic 형식
-        const p1=j?.currentPrice||j?.closePrice||j?.price;
-        if(p1&&p1>0)return Math.round(Number(String(p1).replace(/,/g,'')));
+        // m.stock.naver.com/api/stock/{code}/basic 또는 integration 형식
+        const p1=parseNum(j?.closePrice??j?.currentPrice??j?.price??j?.stockPrice??
+                          j?.dealPrice??j?.lastPrice??j?.tradePrice??j?.basePric);
+        if(p1>0)return p1;
         // polling.finance.naver.com 형식
-        const p2=j?.result?.['시가']||j?.result?.['현재가']||j?.result?.price;
-        if(p2&&p2>0)return Math.round(Number(String(p2).replace(/,/g,'')));
+        const res=j?.result||j?.data||{};
+        const p2=parseNum(res?.price??res?.closePrice??res?.현재가??res?.종가);
+        if(p2>0)return p2;
       }catch{}
     }
   }
