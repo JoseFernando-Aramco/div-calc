@@ -2445,7 +2445,7 @@ async function fetchOne(id){
       // 3차: 네이버 시세 API 직접 호출 (Yahoo 완전 실패시)
       if(!p){
         const code=sym.replace(/\.(KS|KQ)$/,'').replace(/^A/,'');
-        p=await naverPrice(code);
+        p=await stooqPrice(code)||await naverPrice(code);
       }
 
       if(/^\d{6}$/.test(h.n)){
@@ -2467,6 +2467,30 @@ async function fetchOne(id){
 
 // 네이버 시세 직접 조회 (국내주식 최종 fallback)
 // 네이버 시세 직접 fetch (CORS 허용 여부 먼저 확인)
+// stooq.com - CORS 허용, 한국 주식 커버 (Yahoo에 없는 신규 ETF도 포함)
+async function stooqPrice(code){
+  const c=code.replace(/^A/i,'').replace(/\.(KS|KQ)$/,'').padStart(6,'0');
+  // KOSPI(.ks), KOSDAQ(.kq) 순으로 시도
+  for(const suf of['.ks','.kq']){
+    const url=`https://stooq.com/q/l/?s=${c}${suf}&f=sd2t2ohlcv&h&e=csv`;
+    // 직접 fetch 먼저 (stooq CORS 허용)
+    for(const mkP of[u=>u,...PROXIES]){
+      try{
+        const r=await fetch(mkP(url));
+        if(!r.ok)continue;
+        const text=await r.text();
+        if(!text||text.includes('N/D'))continue;
+        const lines=text.trim().split('\n');
+        if(lines.length<2)continue;
+        const cols=lines[1].split(',');
+        const p=parseFloat(cols[6]); // Close price
+        if(p>100)return Math.round(p);
+      }catch{}
+    }
+  }
+  return null;
+}
+
 async function naverPriceDirect(c){
   const urls=[
     `https://polling.finance.naver.com/api/realtime/domestic/stock/${c}`,
@@ -2858,7 +2882,7 @@ async function refreshAll(){
         if(isKR(sym)||isKRName(h.n)){
           if(!isKR(sym)){const f=await findKRSymbol(h.n);if(f)sym=f;}
           try{const res=await Promise.race([yahooQuote(sym),to]);p=Math.round(res.price);if(res.resolvedSym)sym=res.resolvedSym;}catch{}
-          if(!p){const code=sym.replace(/\.(KS|KQ)$/,'').replace(/^A/,'');p=await naverPrice(code);}
+          if(!p){const code=sym.replace(/\.(KS|KQ)$/,'').replace(/^A/,'');p=await stooqPrice(code)||await naverPrice(code);}
         }else{
           p=Math.round((await Promise.race([fhQuote(sym),to]))*D.rate);
         }
@@ -2896,7 +2920,7 @@ async function silentRefresh(){
         if(isKR(sym)||isKRName(h.n)){
           if(!isKR(sym)){const f=await findKRSymbol(h.n);if(f)sym=f;}
           try{const res=await Promise.race([yahooQuote(sym),timeout]);p=Math.round(res.price);if(res.resolvedSym&&res.resolvedSym!==sym)sym=res.resolvedSym;}catch{}
-          if(!p){const code=sym.replace(/\.(KS|KQ)$/,'').replace(/^A/,'');p=await naverPrice(code);}
+          if(!p){const code=sym.replace(/\.(KS|KQ)$/,'').replace(/^A/,'');p=await stooqPrice(code)||await naverPrice(code);}
         }else{
           p=Math.round((await Promise.race([fhQuote(sym),timeout]))*D.rate);
         }
