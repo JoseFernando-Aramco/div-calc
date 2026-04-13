@@ -172,6 +172,7 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
   <div style="display:flex;gap:8px;margin-top:10px">
     <button onclick="openAdd()" style="flex:1;padding:12px;border:none;border-radius:10px;background:#2563eb;color:#fff;font-size:14px;font-weight:700;cursor:pointer">+ 종목 추가</button>
     <button class="rfbtn on" id="rfBtn" onclick="refreshAll()" style="margin-top:0;width:auto;padding:12px 14px;flex-shrink:0;font-size:12px">🔄 업데이트</button>
+    <button id="autoRefBtn" onclick="toggleAutoRef()" style="margin-top:0;width:auto;padding:12px 10px;flex-shrink:0;font-size:11px;border-radius:12px;cursor:pointer;font-weight:600;transition:all .2s">▶ 자동</button>
   </div>
 </div>
 
@@ -2770,6 +2771,60 @@ async function refreshAll(){
     hideG();setBusy(false);LDALL=false;LDS.clear();render();
   }
 }
+
+// ── 자동 시세 갱신 (장중 30초) ──
+let _autoRefTimer=null;
+
+function isMarketOpen(){
+  const now=new Date();
+  const kst=new Date(now.toLocaleString('en-US',{timeZone:'Asia/Seoul'}));
+  const day=kst.getDay(); // 0=일,6=토
+  if(day===0||day===6)return false;
+  const h=kst.getHours(), m=kst.getMinutes();
+  const t=h*60+m;
+  return t>=9*60&&t<15*60+30;
+}
+
+function startAutoRefresh(){
+  if(_autoRefTimer)return;
+  _autoRefTimer=setInterval(async()=>{
+    if(document.hidden)return;       // 백그라운드 탭 스킵
+    if(!isMarketOpen())return;       // 장 마감 스킵
+    if(LDALL||!D.h.length)return;
+    await refreshAll();
+  },30000);
+  updateAutoRefUI();
+}
+
+function stopAutoRefresh(){
+  if(_autoRefTimer){clearInterval(_autoRefTimer);_autoRefTimer=null;}
+  updateAutoRefUI();
+}
+
+function toggleAutoRef(){
+  _autoRefTimer?stopAutoRefresh():startAutoRefresh();
+}
+
+function updateAutoRefUI(){
+  const btn=document.getElementById('autoRefBtn');
+  if(!btn)return;
+  const on=!!_autoRefTimer;
+  btn.textContent=on?'⏸ 자동':'▶ 자동';
+  btn.style.background=on?'#dcfce7':'#f3f4f6';
+  btn.style.color=on?'#16a34a':'#888';
+  btn.style.border=on?'1.5px solid #86efac':'1.5px solid #e5e7eb';
+  // 장외엔 흐리게
+  if(on&&!isMarketOpen()){
+    btn.title='장 마감 — 장중(평일 9:00~15:30)에만 작동합니다';
+    btn.style.opacity='0.55';
+  }else{
+    btn.title=on?'자동 갱신 켜짐 (30초)':'자동 갱신 끄기';
+    btn.style.opacity='1';
+  }
+}
+
+// 탭 전환 시 UI 업데이트
+document.addEventListener('visibilitychange',updateAutoRefUI);
 
 /* ===== RENDER ===== */
 function render(){
