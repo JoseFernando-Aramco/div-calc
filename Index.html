@@ -3330,16 +3330,61 @@ function _commitDrop(clientY){
       insertBefore=clientY<r.top+r.height/2;
     }
   });
-  _clearDragStyles();
-  if(!tid)return;
+
+  // 파란 선 제거
+  all.forEach(el=>el.classList.remove('drag-over-top','drag-over-bot'));
+
+  if(!tid){_clearDragStyles();return;}
+
+  // 드롭 확정 → 새 순서 계산
   const fromIdx=D.h.findIndex(x=>x.id===_dragId);
   let toIdx=D.h.findIndex(x=>x.id===tid);
-  if(fromIdx===-1||toIdx===-1)return;
-  const moved=D.h.splice(fromIdx,1)[0];
-  toIdx=D.h.findIndex(x=>x.id===tid);
-  D.h.splice(insertBefore?toIdx:toIdx+1,0,moved);
-  D.customOrder=D.h.map(x=>x.id);
-  save();render();
+  if(fromIdx===-1||toIdx===-1){_clearDragStyles();return;}
+
+  // 새 순서에서 각 카드가 몇 칸 이동하는지 계산
+  const CARD_H=all[0]?all[0].getBoundingClientRect().height:70;
+  const newOrder=[...D.h];
+  const moved=newOrder.splice(fromIdx,1)[0];
+  const newToIdx=newOrder.findIndex(x=>x.id===tid);
+  newOrder.splice(insertBefore?newToIdx:newToIdx+1,0,moved);
+
+  // 각 카드에 이동 방향 translateY 적용
+  all.forEach(el=>{
+    const id=Number(el.dataset.id);
+    const oldPos=D.h.findIndex(x=>x.id===id);
+    const newPos=newOrder.findIndex(x=>x.id===id);
+    const diff=newPos-oldPos;
+    if(diff===0||id===_dragId)return;
+    el.style.transition='none';
+    el.style.transform=''; // 현재 위치 기준
+  });
+
+  // 한 프레임 후 애니메이션 시작
+  requestAnimationFrame(()=>{
+    all.forEach(el=>{
+      const id=Number(el.dataset.id);
+      if(id===_dragId){
+        el.style.transition='opacity .2s ease';
+        el.style.opacity='1';
+        return;
+      }
+      const oldPos=D.h.findIndex(x=>x.id===id);
+      const newPos=newOrder.findIndex(x=>x.id===id);
+      const diff=newPos-oldPos;
+      if(diff===0)return;
+      el.style.transition='transform .28s cubic-bezier(.4,0,.2,1)';
+      el.style.transform=`translateY(${diff*CARD_H}px)`;
+    });
+
+    // 애니메이션 후 실제 re-render
+    setTimeout(()=>{
+      D.h=newOrder;
+      D.customOrder=D.h.map(x=>x.id);
+      save();
+      _clearDragStyles();
+      render();
+    },300);
+  });
 }
 
 // 핸들에 mousedown/touchstart 달기 (render 후 호출)
