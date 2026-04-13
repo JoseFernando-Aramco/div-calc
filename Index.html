@@ -4041,10 +4041,11 @@ function refreshDynDB(){
 let _ddTimer=null;
 
 function getAllDB(){
-  const seen=new Set(),out=[];
-  // SEARCH_DB 우선 (배당 데이터 정확) → DYN_DB 보완
+  const seen=new Set(), out=[];
   for(const x of [...SEARCH_DB,...DYN_DB]){
-    if(!seen.has(x.s)&&x.s){seen.add(x.s);out.push(x);}
+    // 심볼이 있으면 심볼 기준 중복 제거, 없으면 이름 기준
+    const key=x.s||('n:'+x.n);
+    if(!seen.has(key)){seen.add(key);out.push(x);}
   }
   return out;
 }
@@ -4056,11 +4057,17 @@ function doSearchDD(q){
   const qL=q.toLowerCase();
   const qU=q.toUpperCase();
   const all=getAllDB();
-  // 정확히 일치 먼저, 그 다음 시작 일치, 그 다음 포함
-  const exact=all.filter(x=>x.s===qU||x.s.replace(/\.(KS|KQ)$/,'')=== qU||x.n===q);
-  const starts=all.filter(x=>!exact.includes(x)&&(x.s.toLowerCase().startsWith(qL)||x.s.replace(/\.(KS|KQ)$/,'').toLowerCase().startsWith(qL)||x.n.startsWith(q)));
-  const contains=all.filter(x=>!exact.includes(x)&&!starts.includes(x)&&(x.n.includes(q)||x.n.toLowerCase().includes(qL)));
-  const local=[...exact,...starts,...contains];
+  const exact=all.filter(x=>
+    (x.s&&(x.s===qU||x.s.replace(/\.(KS|KQ)$/,'')=== qU))||x.n===q
+  );
+  const starts=all.filter(x=>!exact.includes(x)&&(
+    (x.s&&(x.s.toLowerCase().startsWith(qL)||x.s.replace(/\.(KS|KQ)$/,'').toLowerCase().startsWith(qL)))||
+    x.n.startsWith(q)
+  ));
+  const contains=all.filter(x=>!exact.includes(x)&&!starts.includes(x)&&(
+    x.n.includes(q)||x.n.toLowerCase().includes(qL)
+  ));
+  const local=[...exact,...starts,...contains].slice(0,30);
   showDD(dd,local,q);
   if(_ddTimer)clearTimeout(_ddTimer);
   _ddTimer=setTimeout(()=>fetchNaverSearch(q,dd,local.length),250);
@@ -4194,16 +4201,30 @@ function pickSearch(n,s,dy,df,isDv){
   document.getElementById('searchDD').style.display='none';
   if(_ddTimer)clearTimeout(_ddTimer);
   updateAvgCurrency(n);
-  // 배당 정보 칩 표시
   const chip=document.getElementById('aDivChip');
   if(isDv&&dy>0){
     chip.style.display='block';
+    chip.style.background='';chip.style.color='';
     chip.textContent='📊 배당 자동 설정: 연 '+dy+'% · '+df;
   }else{
     chip.style.display='block';
     chip.style.background='#f9f8f5';
     chip.style.color='#aaa';
     chip.textContent='📊 배당 없음 (또는 미등록)';
+  }
+  // 심볼 없으면 실시간 조회
+  if(!s){
+    krSearch(n).then(results=>{
+      if(results&&results.length){
+        const match=results.find(r=>r.n===n)||results[0];
+        if(match&&match.s){
+          // DB에 심볼 업데이트
+          const dbEntry=SEARCH_DB.find(x=>x.n===n);
+          if(dbEntry)dbEntry.s=match.s;
+          chip.textContent=(chip.textContent||'')+(match.s?' ('+match.s.replace(/\.(KS|KQ)$/,'')+'코드 확인됨)':'');
+        }
+      }
+    }).catch(()=>{});
   }
 }
 function closeDD(){document.getElementById('searchDD').style.display='none';}
