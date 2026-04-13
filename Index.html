@@ -2816,9 +2816,9 @@ function render(){
       var spinEl=isLd?'<span class="spin" style="width:14px;height:14px;border-color:rgba(255,255,255,.4);border-top-color:#fff;margin:0"></span>':initials;
       var subTxt=fN(dispQty)+'주'+(usd?' · <span style="color:#2563eb">'+usd+'</span>':'');
 
-      return '<div style="'+border+'" data-id="'+id+'" '+(SORT==='custom'?'draggable="true" class="drag-item"':'')+'>'
-        +'<div style="display:flex;align-items:center;overflow:hidden">'
-        +'<button onclick="openBuyHistory('+id+')" style="flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:18px 16px;border:none;background:none;cursor:pointer;text-align:left;overflow:hidden">'
+      return '<div style="'+border+';position:relative" data-id="'+id+'" '+(SORT==='custom'?'draggable="true" class="drag-item"':'')+'>'
+        +'<div style="display:flex;align-items:center">'
+        +'<button onclick="openBuyHistory('+id+')" style="flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:18px 16px;border:none;background:none;cursor:pointer;text-align:left">'
           +'<div class="sicon" style="background:'+bg+'">'+spinEl+'</div>'
           +'<div class="sinfo">'
             +'<div class="sname">'+(h.n||'')+dyBadge+acctBadge+'</div>'
@@ -3268,95 +3268,84 @@ function setFlt(f){
   render();
 }
 // ── 사용자지정 드래그&드롭 ──
-let _dragSrcId=null, _touchDragEl=null, _touchDragId=null;
+let _dragSrcId=null, _dragOverKey=null, _touchDragEl=null, _touchDragId=null;
+
+function _getAllDragItems(){return Array.from(document.querySelectorAll('#hList [data-id]'));}
+function _clearDragStyles(){
+  _getAllDragItems().forEach(el=>{
+    el.classList.remove('drag-dragging','drag-over-top','drag-over-bot');
+    el.style.transform=''; el.style.transition='';
+  });
+}
 
 document.addEventListener('dragstart',function(e){
+  if(SORT!=='custom')return;
   const item=e.target.closest('[data-id]');
-  if(!item||SORT!=='custom')return;
-  _dragSrcId=parseInt(item.dataset.id);
+  if(!item)return;
+  _dragSrcId=Number(item.dataset.id);
   e.dataTransfer.effectAllowed='move';
-  setTimeout(()=>{item.classList.add('drag-dragging');},0);
+  e.dataTransfer.setData('text/plain',String(_dragSrcId));
+  setTimeout(()=>item.classList.add('drag-dragging'),0);
 });
 
-document.addEventListener('dragend',function(e){
-  document.querySelectorAll('.drag-item').forEach(el=>{
-    el.classList.remove('drag-dragging','drag-over-top','drag-over-bot');
-    el.style.transform='';
-    el.style.transition='';
-  });
-  _dragSrcId=null;
+document.addEventListener('dragend',function(){
+  _clearDragStyles(); _dragSrcId=null; _dragOverKey=null;
 });
 
 document.addEventListener('dragover',function(e){
-  if(SORT!=='custom')return;
+  if(SORT!=='custom'||!_dragSrcId)return;
   e.preventDefault();
-  e.dataTransfer.dropEffect='move';
   const item=e.target.closest('[data-id]');
-  if(!item||parseInt(item.dataset.id)===_dragSrcId)return;
-
+  if(!item)return;
+  const tid=Number(item.dataset.id);
+  if(tid===_dragSrcId)return;
   const rect=item.getBoundingClientRect();
   const isTop=e.clientY<rect.top+rect.height/2;
-
-  // 이전 상태 초기화
-  const allItems=Array.from(document.querySelectorAll('#hList [data-id]'));
-  allItems.forEach(el=>{
-    el.classList.remove('drag-over-top','drag-over-bot');
-    el.style.transition='transform .18s cubic-bezier(.4,0,.2,1)';
-  });
-
-  // 삽입 위치 표시
-  item.classList.add(isTop?'drag-over-top':'drag-over-bot');
-
-  // 드래그 소스 위치와 타겟 위치 찾기
-  const srcIdx=allItems.findIndex(el=>parseInt(el.dataset.id)===_dragSrcId);
-  const tgtIdx=allItems.indexOf(item);
+  const key=tid+'_'+(isTop?'t':'b');
+  if(_dragOverKey===key)return;
+  _dragOverKey=key;
+  const all=_getAllDragItems();
+  const srcIdx=all.findIndex(el=>Number(el.dataset.id)===_dragSrcId);
+  const tgtIdx=all.findIndex(el=>Number(el.dataset.id)===tid);
   const insertIdx=isTop?tgtIdx:tgtIdx+1;
-  const PUSH=38; // px — 밀려나는 거리
-
-  allItems.forEach((el,i)=>{
-    if(parseInt(el.dataset.id)===_dragSrcId){el.style.transform='';return;}
-    // srcIdx→insertIdx 이동 시 중간 아이템들 밀기
+  const PUSH=56;
+  all.forEach((el,i)=>{
+    el.classList.remove('drag-over-top','drag-over-bot');
+    el.style.transition='transform .2s cubic-bezier(.4,0,.2,1)';
+    if(Number(el.dataset.id)===_dragSrcId){el.style.transform='';return;}
     if(srcIdx<insertIdx){
-      // 아래로 이동: src+1 ~ insertIdx-1 아이템들을 위로
       el.style.transform=(i>srcIdx&&i<insertIdx)?`translateY(-${PUSH}px)`:'';
-    } else {
-      // 위로 이동: insertIdx ~ src-1 아이템들을 아래로
+    }else{
       el.style.transform=(i>=insertIdx&&i<srcIdx)?`translateY(${PUSH}px)`:'';
     }
+    if(Number(el.dataset.id)===tid) el.classList.add(isTop?'drag-over-top':'drag-over-bot');
   });
 });
 
 document.addEventListener('dragleave',function(e){
   const list=document.getElementById('hList');
-  if(!list.contains(e.relatedTarget)){
-    document.querySelectorAll('.drag-item').forEach(el=>{
-      el.classList.remove('drag-over-top','drag-over-bot');
-      el.style.transform='';
-    });
-  }
+  if(list&&!list.contains(e.relatedTarget)) _clearDragStyles();
 });
 
 document.addEventListener('drop',function(e){
   if(SORT!=='custom')return;
   e.preventDefault();
   const item=e.target.closest('[data-id]');
-  document.querySelectorAll('.drag-item').forEach(el=>{
-    el.classList.remove('drag-over-top','drag-over-bot','drag-dragging');
-    el.style.transform='';
-  });
-  if(!item)return;
-  const targetId=parseInt(item.dataset.id);
-  if(!_dragSrcId||_dragSrcId===targetId)return;
+  _clearDragStyles();
+  if(!item||!_dragSrcId)return;
+  const tid=Number(item.dataset.id);
+  if(tid===_dragSrcId)return;
   const rect=item.getBoundingClientRect();
   const insertBefore=e.clientY<rect.top+rect.height/2;
   const fromIdx=D.h.findIndex(x=>x.id===_dragSrcId);
-  let toIdx=D.h.findIndex(x=>x.id===targetId);
+  let toIdx=D.h.findIndex(x=>x.id===tid);
   if(fromIdx===-1||toIdx===-1)return;
   const moved=D.h.splice(fromIdx,1)[0];
-  toIdx=D.h.findIndex(x=>x.id===targetId);
+  toIdx=D.h.findIndex(x=>x.id===tid);
   D.h.splice(insertBefore?toIdx:toIdx+1,0,moved);
   D.customOrder=D.h.map(x=>x.id);
   save();render();
+  _dragSrcId=null; _dragOverKey=null;
 });
 
 // 터치 드래그 (모바일 - iOS Safari 완전 지원)
