@@ -2893,10 +2893,16 @@ function renderSim(dvH,tV){
   dvH.forEach((h,idx)=>{
     const cur=h.cur||h.avg;
     const buys=h.buys||[];
-    // buys가 있으면 buys 기준, 없으면 h.acct 전체로 처리
     const qByAcct={general:0,tax:0};
     if(buys.length){
       buys.forEach(b=>{ const k=(b.acct==='tax')?'tax':'general'; qByAcct[k]+=b.qty; });
+      // buys 합계가 h.qty보다 크면 h.qty 기준으로 비례 보정
+      const total=qByAcct.general+qByAcct.tax;
+      if(total>h.qty&&total>0){
+        const ratio=h.qty/total;
+        qByAcct.general=Math.round(qByAcct.general*ratio);
+        qByAcct.tax=h.qty-qByAcct.general;
+      }
     } else {
       const k=(h.acct==='tax')?'tax':'general'; qByAcct[k]=h.qty;
     }
@@ -4228,13 +4234,23 @@ function pickSearch(n,s,dy,df,isDv){
   }
 }
 function closeDD(){document.getElementById('searchDD').style.display='none';}
-document.addEventListener('click',e=>{if(!e.target.closest('#searchDD')&&e.target.id!=='aName')closeDD();});
+document.addEventListener('mousedown',e=>{
+  // 검색창, 드롭다운, 종목추가 모달 안이면 닫지 않음
+  if(e.target.closest('#searchDD')||e.target.id==='aName'||e.target.closest('#addOv'))return;
+  closeDD();
+});
 
-// 보유 종목 배당 정보 + 심볼 DB에서 자동 갱신
+// 보유 종목 배당 정보 + 심볼 + 수량 일관성 자동 갱신
 (function syncDivInfo(){
   let changed=false;
   D.h.forEach(h=>{
-    // 심볼도 DB에서 교정
+    // 수량 일관성: buys 합계 ≠ h.qty 이면 buys 기준으로 수정
+    if(h.buys&&h.buys.length){
+      const sumQty=h.buys.reduce((s,b)=>s+(b.qty||0),0);
+      if(sumQty>0&&sumQty!==h.qty){h.qty=sumQty;changed=true;}
+    }
+
+    // 심볼 교정
     const dbBySym=SEARCH_DB.find(x=>x.n===h.n&&x.s&&x.s!==h.sym);
     if(dbBySym){h.sym=dbBySym.s;changed=true;}
 
