@@ -611,7 +611,7 @@ const SEARCH_DB=[
   {n:'KODEX 미국반도체MV',s:'390390.KS',dy:0.5,df:'분기배당',isDv:true},
   {n:'KODEX 미국빅테크10',s:'441680.KS',dy:0.3,df:'분기배당',isDv:true},
   {n:'KODEX 미국AI테크TOP10',s:'472160.KS',dy:0,df:'없음',isDv:false},
-  {n:'KODEX 미국배당커버드콜액티브',s:'441640.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'KODEX 미국배당커버드콜액티브',s:'A441640.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'KODEX 미국배당다우존스',s:'489250.KS',dy:4.0,df:'월배당',isDv:true},
   {n:'KODEX 미국배당다우존스타겟커버드콜',s:'483290.KS',dy:9.0,df:'월배당',isDv:true},
   {n:'KODEX 미국나스닥100데일리커버드콜OTM',s:'494300.KS',dy:10.0,df:'월배당',isDv:true},
@@ -654,9 +654,9 @@ const SEARCH_DB=[
   {n:'TIGER 미국나스닥100(H)',s:'195980.KS',dy:0.5,df:'분기배당',isDv:true},
   {n:'TIGER 미국배당다우존스',s:'458730.KS',dy:4.0,df:'월배당',isDv:true},
   {n:'TIGER 미국배당+3%프리미엄다우존스',s:'476550.KS',dy:7.0,df:'월배당',isDv:true},
-  {n:'TIGER 미국배당다우존스타겟데일리커버드콜',s:'497060.KS',dy:10.0,df:'월배당',isDv:true},
-  {n:'TIGER 미국나스닥100타겟데일리커버드콜',s:'486290.KS',dy:11.0,df:'월배당',isDv:true},
-  {n:'TIGER 미국S&P500타겟데일리커버드콜',s:'482730.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'TIGER 미국배당다우존스타겟데일리커버드콜',s:'A0008S0.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'TIGER 미국나스닥100타겟데일리커버드콜',s:'A486290.KS',dy:11.0,df:'월배당',isDv:true},
+  {n:'TIGER 미국S&P500타겟데일리커버드콜',s:'A482730.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'TIGER 배당커버드콜액티브',s:'472150.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'TIGER 미국나스닥100커버드콜(합성)',s:'441680.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'TIGER 미국AI빅테크10',s:'481080.KS',dy:0,df:'없음',isDv:false},
@@ -710,7 +710,7 @@ const SEARCH_DB=[
   {n:'RISE 미국배당100데일리고정커버드콜',s:'490600.KS',dy:12.0,df:'월배당',isDv:true},
   {n:'RISE 미국테크100데일리고정커버드콜',s:'491620.KS',dy:11.0,df:'월배당',isDv:true},
   {n:'RISE 미국AI밸류체인데일리고정커버드콜',s:'490590.KS',dy:12.0,df:'월배당',isDv:true},
-  {n:'RISE 미국S&P500데일리고정커버드콜',s:'495050.KS',dy:10.0,df:'월배당',isDv:true},
+  {n:'RISE 미국S&P500데일리고정커버드콜',s:'A0138T0.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'RISE 200위클리커버드콜',s:'475720.KS',dy:10.0,df:'월배당',isDv:true},
   {n:'RISE 200고배당커버드콜ATM',s:'290080.KS',dy:8.0,df:'월배당',isDv:true},
   {n:'RISE 버크셔포트폴리오TOP10',s:'475350.KS',dy:1.0,df:'분기배당',isDv:true},
@@ -2828,26 +2828,21 @@ function pickSearch(n,s,dy,df,isDv){
 function closeDD(){document.getElementById('searchDD').style.display='none';}
 document.addEventListener('click',e=>{if(!e.target.closest('#searchDD')&&e.target.id!=='aName')closeDD();});
 
-// 보유 종목 배당 정보 DB에서 자동 갱신
+// 보유 종목 배당 정보 + 심볼 DB에서 자동 갱신
 (function syncDivInfo(){
   let changed=false;
   D.h.forEach(h=>{
-    if(h.isDv&&h.dy>0&&h.df&&h.df!=='없음')return; // 이미 배당 정보 있으면 스킵
-    // 1) SEARCH_DB 정확 매칭
+    // 심볼도 DB에서 교정
+    const dbBySym=SEARCH_DB.find(x=>x.n===h.n&&x.s&&x.s!==h.sym);
+    if(dbBySym){h.sym=dbBySym.s;changed=true;}
+
+    if(h.isDv&&h.dy>0&&h.df&&h.df!=='없음')return;
     const db=SEARCH_DB.find(x=>(x.s&&x.s===h.sym)||(x.n&&x.n===h.n));
-    if(db&&db.isDv){
-      h.dy=db.dy; h.df=db.df; h.isDv=db.isDv; changed=true; return;
-    }
-    // 2) 이름 포함 매칭
+    if(db&&db.isDv){h.dy=db.dy;h.df=db.df;h.isDv=db.isDv;changed=true;return;}
     const db2=SEARCH_DB.find(x=>x.isDv&&x.n&&h.n&&(h.n.includes(x.n)||x.n.includes(h.n)));
-    if(db2&&db2.isDv){
-      h.dy=db2.dy; h.df=db2.df; h.isDv=db2.isDv; changed=true; return;
-    }
-    // 3) guessEtfDiv로 이름 패턴 추정
+    if(db2&&db2.isDv){h.dy=db2.dy;h.df=db2.df;h.isDv=db2.isDv;changed=true;return;}
     const g=guessEtfDiv(h.n);
-    if(g.isDv){
-      h.dy=g.dy; h.df=g.df; h.isDv=g.isDv; changed=true;
-    }
+    if(g.isDv){h.dy=g.dy;h.df=g.df;h.isDv=g.isDv;changed=true;}
   });
   if(changed)save();
 })();
