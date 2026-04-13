@@ -2987,38 +2987,36 @@ function parseSsText(text){
   const results=[];
   const seen=new Set();
 
-  // genKw 먼저 — 위탁/각시toss는 무조건 일반
-  const genKw=['위탁','일반계좌','일반','각시toss','각시Toss','각시TOSS','toss'];
+  // genKw 먼저 — 대소문자 무시
+  const genKw=['위탁','일반계좌','일반','각시toss','toss'];
   const taxKw=['각시ISA','ISA','IRP','연금저축','연금','개인형','개인종합','신연금','종합자산'];
   function acctOf(s){
     if(!s)return'general';
-    for(const k of genKw)if(s.includes(k))return'general';
+    const sl=s.toLowerCase();
+    for(const k of genKw)if(sl.includes(k.toLowerCase()))return'general';
     for(const k of taxKw)if(s.includes(k))return'tax';
-    return'general'; // 모르면 일반
+    return'general';
   }
 
-  // 상단 종목명/티커 추출 (유연하게)
+  // 상단 종목명/티커 추출
   let topName='', topTicker='';
+  const EXCLUDE=['USD','ETF','KRW','ISA','IRP','LTE','ATM','OTM','NAV'];
   for(let i=0;i<Math.min(lines.length,15);i++){
     const l=lines[i];
-    // 패턴1: "GPIQ $51.52" / "GPIQ$51.52" / "GPIQ S51.52" (OCR $ → S 오인식 대응)
     const tkM=l.match(/^([A-Z]{2,6})\s*[\$S]?\s*([\d,]+\.\d+)/);
-    if(tkM&&tkM[1].length>=2&&!['USD','ETF','KRW','ISA','IRP'].includes(tkM[1])){
-      topTicker=tkM[1]; topName=topTicker; break;
-    }
-    // 패턴2: 줄 전체가 티커 단독 (GPIQ\n)
-    if(/^[A-Z]{2,6}$/.test(l)&&!['USD','ETF','KRW'].includes(l)){
-      topTicker=l; topName=l; break;
-    }
-    // 패턴3: 한국 ETF 브랜드
+    if(tkM&&!EXCLUDE.includes(tkM[1])){topTicker=tkM[1];topName=topTicker;break;}
+    if(/^[A-Z]{2,6}$/.test(l)&&!EXCLUDE.includes(l)){topTicker=l;topName=l;break;}
     if(/^(RISE|KODEX|TIGER|ACE|SOL|HANARO|TIMEFOLIO|KBSTAR|ARIRANG|PLUS)\s/.test(l)){
-      topName=l.replace(/\s*[\d]{6}.*$/,'').trim(); break;
+      topName=l.replace(/\s*[\d]{6}.*$/,'').trim();break;
     }
-    // 패턴4: 종목명 + 6자리 코드
     const cm=l.match(/^(.+?)\s+\d{6}/);
-    if(cm){topName=cm[1].trim(); break;}
+    if(cm){topName=cm[1].trim();break;}
   }
-  // 티커로 DB 매칭
+  // 줄 탐색 실패 → 전체 텍스트에서 "TICKER $price" 검색
+  if(!topTicker){
+    const m=text.match(/\b([A-Z]{2,6})\s+\$[\d,.]+/);
+    if(m&&!EXCLUDE.includes(m[1])){topTicker=m[1];topName=m[1];}
+  }
   if(topTicker){
     const db=getAllDB().find(x=>x.s===topTicker||x.n===topTicker);
     if(db)topName=db.n;
