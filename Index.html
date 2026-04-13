@@ -328,15 +328,13 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f5f3ee;co
 <div class="ov" id="ssOv" onclick="if(event.target===this)closeSsModal()">
 <div class="modal" onclick="event.stopPropagation()" style="padding:20px 18px 32px">
   <div style="font-size:17px;font-weight:800;margin-bottom:14px">📸 스크린샷 인식</div>
-  <div id="ssDropZone" onclick="document.getElementById('ssFileInput').click()" style="border:2px dashed #bfdbfe;border-radius:14px;padding:28px;text-align:center;cursor:pointer;background:#f0f7ff;margin-bottom:12px">
-    <div style="font-size:32px;margin-bottom:6px">🖼️</div>
+  <div id="ssDropZone" onclick="document.getElementById('ssFileInput').click()" style="border:2px dashed #bfdbfe;border-radius:14px;padding:20px;text-align:center;cursor:pointer;background:#f0f7ff;margin-bottom:12px">
+    <div style="font-size:28px;margin-bottom:4px">🖼️</div>
     <div style="font-size:14px;font-weight:700;color:#2563eb">탭해서 스크린샷 선택</div>
-    <div style="font-size:11px;color:#93c5fd;margin-top:3px">PNG · JPG</div>
+    <div style="font-size:11px;color:#93c5fd;margin-top:2px">최대 3장 · PNG · JPG</div>
   </div>
-  <input type="file" id="ssFileInput" accept="image/png,image/jpeg,image/jpg" style="display:none">
-  <div id="ssPreview" style="display:none;margin-bottom:12px;text-align:center">
-    <img id="ssPreviewImg" style="max-width:100%;max-height:180px;border-radius:10px;object-fit:contain">
-  </div>
+  <input type="file" id="ssFileInput" accept="image/png,image/jpeg,image/jpg" multiple style="display:none">
+  <div id="ssPreviewRow" style="display:none;display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"></div>
   <div id="ssStatus" style="display:none;padding:10px;background:#eff6ff;border-radius:10px;margin-bottom:10px">
     <div style="display:flex;align-items:center;gap:8px">
       <span class="spin"></span>
@@ -2773,24 +2771,27 @@ fetchRate();
 </script>
 <script>
 /* ===== SCREENSHOT OCR (OCR.space 무료 API) ===== */
-let SS_FILE=null, SS_PARSED=[];
+let SS_FILES=[], SS_PARSED=[];
 
 function openSsImport(){
-  SS_FILE=null; SS_PARSED=[];
+  SS_FILES=[]; SS_PARSED=[];
   document.getElementById('ssDropZone').style.display='block';
-  document.getElementById('ssPreview').style.display='none';
+  document.getElementById('ssPreviewRow').style.display='none';
+  document.getElementById('ssPreviewRow').innerHTML='';
   document.getElementById('ssStatus').style.display='none';
   document.getElementById('ssResult').style.display='none';
   document.getElementById('ssAnalyzeBtn').style.display='none';
   document.getElementById('ssImportBtn').style.display='none';
   document.getElementById('ssOv').classList.add('show');
   document.getElementById('ssFileInput').onchange=function(e){
-    const file=e.target.files&&e.target.files[0];
-    if(!file)return;
-    SS_FILE=file;
-    document.getElementById('ssPreviewImg').src=URL.createObjectURL(file);
-    document.getElementById('ssPreview').style.display='block';
-    document.getElementById('ssDropZone').style.display='none';
+    const files=Array.from(e.target.files||[]).slice(0,3);
+    if(!files.length)return;
+    SS_FILES=files;
+    const row=document.getElementById('ssPreviewRow');
+    row.innerHTML=files.map(f=>`<img src="${URL.createObjectURL(f)}" style="height:80px;border-radius:8px;object-fit:cover;flex:1;min-width:0">`).join('');
+    row.style.display='flex';
+    document.getElementById('ssDropZone').style.display=files.length<3?'block':'none';
+    document.getElementById('ssDropZone').innerHTML=`<div style="font-size:13px;color:#2563eb;font-weight:600">+ 추가 선택 (${files.length}/3)</div>`;
     document.getElementById('ssAnalyzeBtn').style.display='block';
     document.getElementById('ssResult').style.display='none';
     document.getElementById('ssImportBtn').style.display='none';
@@ -2802,8 +2803,40 @@ function closeSsModal(){
   document.getElementById('ssOv').classList.remove('show');
 }
 
+async function ocrFile(file, idx, total, stxt, bar){
+  const dataUrl = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let w=img.width, h=img.height;
+      const MAX=1500;
+      if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+      if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}
+      const c=document.createElement('canvas');
+      c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(c.toDataURL('image/jpeg',0.85));
+    };
+    img.onerror=reject;
+    img.src=URL.createObjectURL(file);
+  });
+  stxt.textContent=`이미지 ${idx+1}/${total} OCR 전송 중...`;
+  bar.style.width=Math.round((idx/total)*80+10)+'%';
+  const fd=new FormData();
+  fd.append('base64Image',dataUrl);
+  fd.append('language','kor');
+  fd.append('isOverlayRequired','false');
+  fd.append('OCREngine','2');
+  fd.append('scale','true');
+  fd.append('apikey','helloworld');
+  const resp=await fetch('https://api.ocr.space/parse/image',{method:'POST',body:fd});
+  if(!resp.ok)throw new Error('서버 오류 '+resp.status);
+  const data=await resp.json();
+  if(data.IsErroredOnProcessing)throw new Error(data.ErrorMessage?.[0]||'OCR 실패');
+  return (data.ParsedResults||[]).map(r=>r.ParsedText||'').join('\n');
+}
+
 async function runSsAnalyze(){
-  if(!SS_FILE){alert('이미지를 먼저 선택하세요');return;}
+  if(!SS_FILES.length){alert('이미지를 먼저 선택하세요');return;}
   const st=document.getElementById('ssStatus');
   const stxt=document.getElementById('ssStatusTxt');
   const bar=document.getElementById('ssProgressBar');
@@ -2812,68 +2845,40 @@ async function runSsAnalyze(){
   const imp=document.getElementById('ssImportBtn');
 
   st.style.display='block';
-  stxt.textContent='Tesseract 로딩 중...';
+  stxt.textContent='분석 시작...';
   bar.style.width='0%';
   btn.style.display='none';
   res.style.display='none';
   imp.style.display='none';
 
   try{
-    // 이미지 → canvas 리사이즈 → JPEG base64 (1MB 이하)
-    const dataUrl = await new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        let w = img.width, h = img.height;
-        const MAX = 1500;
-        if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; }
-        if(h > MAX){ w = Math.round(w * MAX / h); h = MAX; }
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        c.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(c.toDataURL('image/jpeg', 0.85));
-      };
-      img.onerror = reject;
-      img.src = URL.createObjectURL(SS_FILE);
-    });
+    const allTexts=[];
+    for(let i=0;i<SS_FILES.length;i++){
+      const text=await ocrFile(SS_FILES[i],i,SS_FILES.length,stxt,bar);
+      if(text.trim())allTexts.push(text);
+    }
+    bar.style.width='100%';
+    st.style.display='none';
 
-    stxt.textContent = 'OCR 서버 전송 중...';
-    bar.style.width = '30%';
-
-    // OCR.space 무료 API (하루 500회, 한국어 지원)
-    const fd = new FormData();
-    fd.append('base64Image', dataUrl);
-    fd.append('language', 'kor');
-    fd.append('isOverlayRequired', 'false');
-    fd.append('OCREngine', '2');
-    fd.append('scale', 'true');
-    fd.append('apikey', 'helloworld');
-
-    bar.style.width = '60%';
-    const resp = await fetch('https://api.ocr.space/parse/image', {
-      method: 'POST',
-      body: fd
-    });
-
-    bar.style.width = '90%';
-    if(!resp.ok) throw new Error('서버 오류 ' + resp.status);
-    const data = await resp.json();
-    if(data.IsErroredOnProcessing) throw new Error(data.ErrorMessage?.[0] || 'OCR 처리 실패');
-
-    const text = (data.ParsedResults || []).map(r => r.ParsedText || '').join('\n');
-    bar.style.width = '100%';
-    st.style.display = 'none';
-
-    if(!text.trim()){
+    const combinedText=allTexts.join('\n---\n');
+    if(!combinedText.trim()){
       res.innerHTML='<div style="background:#fff7ed;border-radius:10px;padding:12px;font-size:12px;color:#d97706">⚠️ 텍스트를 인식하지 못했습니다</div>';
       res.style.display='block';
       btn.style.display='block'; btn.textContent='🔄 재시도';
       return;
     }
 
-    SS_PARSED = parseSsText(text);
+    // 각 이미지별 파싱 후 합산
+    SS_PARSED=[];
+    const seen=new Set();
+    allTexts.forEach(t=>{
+      parseSsText(t).forEach(x=>{
+        const k=x.name+'|'+x.qty+'|'+x.avgPrice+'|'+x.acct;
+        if(!seen.has(k)){seen.add(k);SS_PARSED.push(x);}
+      });
+    });
 
-    // 항상 원본 텍스트 표시 (디버깅)
-    const rawBox=`<details style="margin-bottom:8px"><summary style="font-size:11px;color:#aaa;cursor:pointer">📄 OCR 원본 텍스트 보기</summary><pre style="font-size:10px;color:#666;background:#f9f8f5;padding:8px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;word-break:break-all">${text.replace(/</g,'&lt;')}</pre></details>`;
+    const rawBox=`<details style="margin-top:8px"><summary style="font-size:11px;color:#aaa;cursor:pointer">📄 OCR 원본 텍스트</summary><pre style="font-size:10px;color:#666;background:#f9f8f5;padding:8px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;word-break:break-all">${combinedText.replace(/</g,'&lt;')}</pre></details>`;
 
     if(!SS_PARSED.length){
       res.innerHTML='<div style="background:#fff7ed;border-radius:10px;padding:12px;font-size:12px;color:#d97706">⚠️ 종목 패턴을 찾지 못했습니다</div>'+rawBox;
@@ -2881,11 +2886,10 @@ async function runSsAnalyze(){
       btn.style.display='block'; btn.textContent='🔄 재시도';
       return;
     }
-
     renderSsParsed(rawBox);
   }catch(e){
     st.style.display='none';
-    res.innerHTML='<div style="background:#fef2f2;border-radius:10px;padding:12px;font-size:12px;color:#dc2626">❌ '+(e.message||'오류 발생')+'</div>';
+    res.innerHTML='<div style="background:#fef2f2;border-radius:10px;padding:12px;font-size:12px;color:#dc2626">❌ '+(e.message||'오류')+'</div>';
     res.style.display='block';
     btn.style.display='block'; btn.textContent='🔄 재시도';
   }
